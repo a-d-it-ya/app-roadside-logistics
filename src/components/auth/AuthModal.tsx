@@ -129,11 +129,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onSuccess }) => {
       setErrorMsg('Full name is required.');
       return;
     }
-    if (!email.trim() || !/^\S+@\S+\.\S+$/.test(email.trim())) {
+    let cleanEmail = email.trim();
+    if (cleanEmail && cleanEmail.includes('@') && !cleanEmail.includes('.')) {
+      cleanEmail = `${cleanEmail}.com`;
+    }
+    if (!cleanEmail || !cleanEmail.includes('@')) {
       setErrorMsg('Please enter a valid email address.');
       return;
     }
-    if (!phone.trim() || phone.trim().length < 8) {
+    if (!phone.trim()) {
       setErrorMsg('Please enter a valid phone number.');
       return;
     }
@@ -145,8 +149,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onSuccess }) => {
       setErrorMsg('Please enter your Commercial Driver License Number.');
       return;
     }
-    if (!password || password.length < 8) {
-      setErrorMsg('Password must be at least 8 characters.');
+    if (!password || password.length < 4) {
+      setErrorMsg('Password must be at least 4 characters.');
       return;
     }
     if (password !== confirmPassword) {
@@ -158,7 +162,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onSuccess }) => {
       setIsSubmitting(true);
       const user = await signUp({
         fullName: name.trim(),
-        email: email.trim(),
+        email: cleanEmail,
         phone: phone.trim(),
         password,
         userRole,

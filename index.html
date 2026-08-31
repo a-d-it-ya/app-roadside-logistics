@@ -1817,7 +1817,6 @@
               id="regCompany"
               placeholder="e.g. Aditya Freight Solutions"
               class="w-full bg-slate-900/90 border border-slate-800 focus:border-cyan-500 rounded-xl py-2 px-3 text-white text-xs placeholder:text-slate-600 outline-none transition"
-              required
             />
           </div>
 
@@ -6686,7 +6685,7 @@
     function handleSignUpSubmit(e) {
       e.preventDefault();
       const name = (document.getElementById('regName').value || '').trim();
-      const email = (document.getElementById('regEmail').value || '').trim().toLowerCase();
+      let email = (document.getElementById('regEmail').value || '').trim().toLowerCase();
       const phone = (document.getElementById('regPhone').value || '').trim();
       const password = document.getElementById('regPassword').value;
       const confirmPass = document.getElementById('regConfirmPassword').value;
@@ -6695,10 +6694,11 @@
 
       if (!name) return showAuthError('Full name is required.');
       if (!email || !email.includes('@')) return showAuthError('Please enter a valid email address.');
-      if (!phone || phone.length < 8) return showAuthError('Please enter a valid phone number.');
+      if (!email.includes('.')) email = `${email}.com`;
+      if (!phone) return showAuthError('Please enter a phone number.');
       if (regUserRoleSelected === 'BUSINESS' && !company) return showAuthError('Please enter your company or business name.');
       if (regUserRoleSelected === 'DRIVER' && !license) return showAuthError('Please enter your Commercial Driver License number.');
-      if (!password || password.length < 8) return showAuthError('Password must be at least 8 characters.');
+      if (!password || password.length < 4) return showAuthError('Password must be at least 4 characters.');
       if (password !== confirmPass) return showAuthError('Passwords do not match.');
 
       let users = [];
