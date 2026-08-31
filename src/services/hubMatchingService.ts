@@ -44,9 +44,113 @@ export function formatTimeBuffer(minutes: number): string {
 }
 
 /**
+ * Determines whether a specific hub is strictly AHEAD of the truck along its planned route.
+ * A hub is INVALID if it lies behind the truck's current position / route progress.
+ */
+export function isHubAheadOfTruck(
+  truck: Truck,
+  hub: LogisticsHub,
+  criteria: ShipmentSearchCriteria
+): boolean {
+  const originCity = criteria.origin;
+  const destCity = criteria.destination;
+  
+  // 1. Hub MUST match the origin region
+  if (!isCityMatch(hub.city, originCity)) {
+    return false;
+  }
+
+  // 2. Check explicit optionalServiceHubs on truck for this specific hub
+  if (truck.optionalServiceHubs && truck.optionalServiceHubs.length > 0) {
+    const optMatch = truck.optionalServiceHubs.find(
+      opt => opt.hubId === hub.id || isCityMatch(opt.hubName, hub.name)
+    );
+    if (optMatch) {
+      if (optMatch.pickupWindowStatus === 'passed') {
+        return false; // Explicitly marked as already passed!
+      }
+      if (optMatch.pickupWindowStatus === 'open' || optMatch.pickupWindowStatus === 'approaching') {
+        return true;
+      }
+    }
+  }
+
+  // 3. Evaluate ordered route stops sequence
+  const routeStops = truck.route || truck.routeStops || [];
+  const curCity = truck.currentLocation?.city || truck.currentCity || '';
+  const curLoc = truck.currentLocationName || truck.location || '';
+  const curLocLower = normalizeCity(curLoc || curCity);
+
+  let currentStopIdx = -1;
+  if (typeof truck.currentStopIndex === 'number') {
+    currentStopIdx = truck.currentStopIndex;
+  } else {
+    for (let i = 0; i < routeStops.length; i++) {
+      if (isCityMatch(routeStops[i], curCity) || (curLoc && isCityMatch(curLoc, routeStops[i]))) {
+        currentStopIdx = i;
+        break;
+      }
+    }
+  }
+
+  let hubStopIdx = -1;
+  for (let i = 0; i < routeStops.length; i++) {
+    if (
+      isCityMatch(routeStops[i], hub.name) ||
+      isCityMatch(routeStops[i], hub.address) ||
+      isCityMatch(routeStops[i], hub.id)
+    ) {
+      hubStopIdx = i;
+      break;
+    }
+  }
+
+  if (currentStopIdx !== -1 && hubStopIdx !== -1) {
+    if (hubStopIdx < currentStopIdx) {
+      return false; // Strictly behind current stop!
+    }
+    if (hubStopIdx === currentStopIdx) {
+      if (truck.status === 'At Smart Hub' && isCityMatch(curLocLower, hub.name)) {
+        return true;
+      }
+      if (curLocLower.includes('passed') || curLocLower.includes('departed')) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  // 4. Directional Forward Vector Check toward Destination
+  const destCoord = getCityCoordinates(destCity);
+  const truckLat = truck.currentCoords?.lat ?? truck.lat ?? 0;
+  const truckLng = truck.currentCoords?.lng ?? truck.lng ?? 0;
+
+  if (truckLat && truckLng && destCoord) {
+    const vLat = destCoord.lat - truckLat;
+    const vLng = destCoord.lng - truckLng;
+    const wLat = hub.coordinates.lat - truckLat;
+    const wLng = hub.coordinates.lng - truckLng;
+    const dot = (vLat * wLat) + (vLng * wLng);
+
+    const distKm = calculateHaversineDistanceKm({ lat: truckLat, lng: truckLng }, hub.coordinates);
+    if (distKm <= 2.0 && truck.status === 'At Smart Hub') {
+      return true;
+    }
+
+    if (dot < 0) {
+      return false; // Hub lies in the backward cone!
+    }
+  }
+
+  return true;
+}
+
+/**
  * Finds explicit upcoming planned pickup stops for the truck.
- * ABSOLUTE INVARIANT: The pickup hub MUST strictly belong to the shipment ORIGIN city/region.
- * Destination hubs (or hubs beyond destination) are NEVER allowed as pickup points.
+ * ABSOLUTE INVARIANTS:
+ * 1. The pickup hub MUST strictly belong to the shipment ORIGIN city/region.
+ * 2. The pickup hub MUST lie strictly AHEAD of the truck's current position/progress.
+ * 3. Hubs already passed are REMOVED with zero fallback.
  */
 export function getUpcomingPlannedStops(
   truck: Truck,
@@ -55,7 +159,6 @@ export function getUpcomingPlannedStops(
 ): { plannedStop: PlannedRouteStop; hub: LogisticsHub }[] {
   const stops: { plannedStop: PlannedRouteStop; hub: LogisticsHub }[] = [];
   const originCity = criteria.origin;
-  const destCity = criteria.destination;
 
   // 1. Check explicit optionalServiceHubs on truck for ORIGIN-matching hubs
   if (truck.optionalServiceHubs && truck.optionalServiceHubs.length > 0) {
@@ -66,9 +169,12 @@ export function getUpcomingPlannedStops(
       }
 
       const hub = availableHubs.find(h => h.id === opt.hubId) ||
-                  availableHubs.find(h => isCityMatch(h.city, originCity));
+                  availableHubs.find(h => isCityMatch(h.city, originCity) && isCityMatch(h.name, opt.hubName));
 
       if (hub && isCityMatch(hub.city, originCity)) {
+        // Enforce ahead check
+        if (!isHubAheadOfTruck(truck, hub, criteria)) return;
+
         const eta = opt.estimatedArrivalMinutesFromNow || truck.nextHubEtaMinutes || 45;
         const synthStop: PlannedRouteStop = {
           stopIndex: 0,
@@ -89,21 +195,24 @@ export function getUpcomingPlannedStops(
   if (truck.plannedStops && truck.plannedStops.length > 0) {
     truck.plannedStops.forEach(stop => {
       if (stop.status === 'passed') return;
-      if (!isCityMatch(stop.city, originCity)) return; // Strict origin check!
+      if (!isCityMatch(stop.city, originCity)) return;
 
       const hub = availableHubs.find(h => h.id === stop.hubId) ||
                   availableHubs.find(h => isCityMatch(h.city, originCity));
 
       if (hub && isCityMatch(hub.city, originCity)) {
+        if (!isHubAheadOfTruck(truck, hub, criteria)) return;
         stops.push({ plannedStop: stop, hub });
       }
     });
   }
 
-  // 3. If truck route passes through origin, find available hubs in the origin city
-  if (stops.length === 0) {
+  // 3. If truck has no explicit optional hubs attached, evaluate candidate origin hubs
+  if (stops.length === 0 && (!truck.optionalServiceHubs || truck.optionalServiceHubs.length === 0)) {
     const originHubs = availableHubs.filter(h => isCityMatch(h.city, originCity));
     originHubs.forEach(hub => {
+      if (!isHubAheadOfTruck(truck, hub, criteria)) return;
+
       const eta = truck.status === 'At Smart Hub' ? 20 : (truck.nextHubEtaMinutes || 45);
       const synthStop: PlannedRouteStop = {
         stopIndex: 0,

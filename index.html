@@ -3834,21 +3834,98 @@
     // ----------------------------------------------------
     // OPTIONAL CORRIDOR STOPS & 5-GATE ELIGIBILITY ENGINE (FEATURE 4)
     // ----------------------------------------------------
-    function isHubAheadOfTruck(truck, hub, destCoord) {
-      if (!destCoord) return true;
-      // Vector from truck to destination
-      const vLat = destCoord.lat - truck.lat;
-      const vLng = destCoord.lng - truck.lng;
-      // Vector from truck to hub
-      const wLat = hub.lat - truck.lat;
-      const wLng = hub.lng - truck.lng;
-      // Dot product: positive means hub lies in the forward travel cone
-      const dot = (vLat * wLat) + (vLng * wLng);
-      
-      const distKm = calculateHaversineDistanceKm({ lat: truck.lat, lng: truck.lng }, { lat: hub.lat, lng: hub.lng });
-      if (distKm <= 1.5) return true; // Truck is right at the bay
+    function isHubAheadOfTruck(truck, hub, criteria) {
+      const originCity = criteria.origin;
+      const destCity = criteria.destination;
 
-      return dot > 0;
+      // 1. Hub MUST match the origin region
+      if (!isCityMatch(hub.city, originCity)) {
+        return false;
+      }
+
+      // 2. Check explicit optionalServiceHubs on truck for this specific hub
+      if (truck.optionalServiceHubs && truck.optionalServiceHubs.length > 0) {
+        const optMatch = truck.optionalServiceHubs.find(
+          opt => opt.hubId === hub.id || isCityMatch(opt.hubName, hub.name)
+        );
+        if (optMatch) {
+          if (optMatch.pickupWindowStatus === 'passed') {
+            return false; // Explicitly marked as already passed!
+          }
+          if (optMatch.pickupWindowStatus === 'open' || optMatch.pickupWindowStatus === 'approaching') {
+            return true;
+          }
+        }
+      }
+
+      // 3. Evaluate ordered route stops sequence
+      const routeStops = truck.route || truck.routeStops || [];
+      const curCity = truck.currentLocation?.city || truck.currentCity || '';
+      const curLoc = truck.currentLocationName || truck.location || '';
+      const curLocLower = (curLoc || curCity).toLowerCase();
+
+      let currentStopIdx = -1;
+      if (typeof truck.currentStopIndex === 'number') {
+        currentStopIdx = truck.currentStopIndex;
+      } else {
+        for (let i = 0; i < routeStops.length; i++) {
+          if (isCityMatch(routeStops[i], curCity) || (curLoc && isCityMatch(curLoc, routeStops[i]))) {
+            currentStopIdx = i;
+            break;
+          }
+        }
+      }
+
+      let hubStopIdx = -1;
+      for (let i = 0; i < routeStops.length; i++) {
+        if (
+          isCityMatch(routeStops[i], hub.name) ||
+          isCityMatch(routeStops[i], hub.address) ||
+          isCityMatch(routeStops[i], hub.id)
+        ) {
+          hubStopIdx = i;
+          break;
+        }
+      }
+
+      if (currentStopIdx !== -1 && hubStopIdx !== -1) {
+        if (hubStopIdx < currentStopIdx) {
+          return false; // Strictly behind current stop!
+        }
+        if (hubStopIdx === currentStopIdx) {
+          if (truck.status === 'At Smart Hub' && isCityMatch(curLocLower, hub.name)) {
+            return true;
+          }
+          if (curLocLower.includes('passed') || curLocLower.includes('departed')) {
+            return false;
+          }
+        }
+        return true;
+      }
+
+      // 4. Directional Forward Vector Check toward Destination
+      const destCoord = getCityCoordinates(destCity);
+      const truckLat = truck.lat || (truck.currentCoords && truck.currentCoords.lat) || 0;
+      const truckLng = truck.lng || (truck.currentCoords && truck.currentCoords.lng) || 0;
+
+      if (truckLat && truckLng && destCoord) {
+        const vLat = destCoord.lat - truckLat;
+        const vLng = destCoord.lng - truckLng;
+        const wLat = hub.lat - truckLat;
+        const wLng = hub.lng - truckLng;
+        const dot = (vLat * wLat) + (vLng * wLng);
+
+        const distKm = calculateHaversineDistanceKm({ lat: truckLat, lng: truckLng }, { lat: hub.lat, lng: hub.lng });
+        if (distKm <= 2.0 && truck.status === 'At Smart Hub') {
+          return true;
+        }
+
+        if (dot < 0) {
+          return false; // Hub lies in the backward cone!
+        }
+      }
+
+      return true;
     }
 
     function isCityMatch(cityName, targetName) {
@@ -3971,17 +4048,21 @@
           if (!isCityMatch(opt.city, originCity) && !isCityMatch(opt.serviceRegion, originCity)) return;
 
           const hub = availableHubs.find(h => h.id === opt.hubId) ||
-                      availableHubs.find(h => isCityMatch(h.city, originCity));
+                      availableHubs.find(h => isCityMatch(h.city, originCity) && isCityMatch(h.name, opt.hubName));
 
           if (hub && isCityMatch(hub.city, originCity)) {
+            // Strict check: Is this specific hub ahead of the truck?
+            if (!isHubAheadOfTruck(truck, hub, criteria)) return;
             stops.push({ optionalHub: opt, hub });
           }
         });
       }
 
-      if (stops.length === 0) {
+      if (stops.length === 0 && (!truck.optionalServiceHubs || truck.optionalServiceHubs.length === 0)) {
         const originHubs = availableHubs.filter(h => isCityMatch(h.city, originCity));
         originHubs.forEach(hub => {
+          if (!isHubAheadOfTruck(truck, hub, criteria)) return;
+
           const fakeOpt = {
             hubId: hub.id,
             hubName: hub.name,
@@ -4051,9 +4132,9 @@
       const hubScore = isTimeFeasible ? Math.min(99, Math.max(60, Math.round(compositeRaw))) : 40;
 
       const explanations = [
-        `Scheduled pickup in ${criteria.origin} along vehicle corridor`,
+        `Upcoming pickup hub in ${criteria.origin} along vehicle corridor`,
         isTimeFeasible ? `Your cargo can reach the hub ${safetyTimeBufferFormatted} before cutoff` : `Cargo will arrive after the ${loadingCutoffFormatted} cutoff`,
-        `Truck stops directly on its locked corridor with zero backtracking`,
+        `Truck stops directly on its forward route with zero backtracking`,
         `Direct onward connection along highway to ${criteria.destination}`
       ];
 
@@ -4149,23 +4230,27 @@
 
         // Gate 3: Available Capacity Check
         const hasCapacity = (truck.availCapKg || 0) >= reqWeight;
+        if (!hasCapacity) {
+          nonMatchingTrucks.push(truck);
+          return;
+        }
 
         // Gate 4: Cargo Compatibility Check
         const supported = truck.supportedCargo || [];
         const hasCargoFit = !criteria.cargoType || supported.includes(criteria.cargoType);
-
-        // Gate 5: Time Feasibility Check
-        let isTimeFeasible = true;
-        const eta = truck.eta || 45;
-        const cutoff = Math.max(0, eta - 15);
-        const cargoReady = 30;
-        isTimeFeasible = cargoReady <= cutoff;
-
-        if (hasCapacity && hasCargoFit && isTimeFeasible) {
-          matchingTrucks.push(truck);
-        } else {
+        if (!hasCargoFit) {
           nonMatchingTrucks.push(truck);
+          return;
         }
+
+        // Gate 5: Hard Verification of Upcoming Pickup Hub & Cargo Readiness Feasibility
+        const hubRec = recommendHubsForTruck(truck, criteria, HUBS);
+        if (!hubRec.hasReachablePickupHub || !hubRec.recommendedHub || !hubRec.recommendedHub.isTimeFeasible) {
+          nonMatchingTrucks.push(truck);
+          return;
+        }
+
+        matchingTrucks.push(truck);
       });
 
       return {
