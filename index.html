@@ -2928,17 +2928,18 @@
         dest: 'Chennai',
         overallOrigin: 'Hyderabad',
         overallDestination: 'Chennai',
-        location: 'Hyderabad Central Freight Hub (Loading Bay 4 - Staged for Intake)',
+        location: 'Hyderabad East Logistics Park (Hayathnagar Gate - Bay 2)',
         currentCity: 'Hyderabad',
-        route: ['Hyderabad', 'Nalgonda', 'Miryalaguda', 'Guntur', 'Chennai'],
+        route: ['Hyderabad', 'Hayathnagar', 'Nalgonda', 'Miryalaguda', 'Guntur', 'Chennai'],
         optionalServiceHubs: [
-          { hubId: 'HUB-HYD-01', hubName: 'Hyderabad Central Freight Hub', city: 'Hyderabad', serviceRegion: 'Hyderabad', eta: 50, pickupWindowStatus: 'open' }
+          { hubId: 'HUB-HYD-01', hubName: 'Hyderabad Central Freight Hub', city: 'Hyderabad', serviceRegion: 'Hyderabad', eta: 0, pickupWindowStatus: 'passed' },
+          { hubId: 'HUB-HYD-03', hubName: 'Hyderabad East Logistics Park', city: 'Hyderabad', serviceRegion: 'Hyderabad', eta: 45, pickupWindowStatus: 'open' }
         ],
         totalCapKg: 3500,
         availCapKg: 850,
         status: 'At Smart Hub',
         speed: 0,
-        eta: 50,
+        eta: 45,
         estimatedArrival: 'Tomorrow, 06:30 AM',
         rating: 4.82,
         supportedCargo: ['General Cargo', 'Electronics', 'Fragile Goods'],
@@ -3848,17 +3849,38 @@
         const optMatch = truck.optionalServiceHubs.find(
           opt => opt.hubId === hub.id || isCityMatch(opt.hubName, hub.name)
         );
-        if (optMatch) {
-          if (optMatch.pickupWindowStatus === 'passed') {
-            return false; // Explicitly marked as already passed!
-          }
-          if (optMatch.pickupWindowStatus === 'open' || optMatch.pickupWindowStatus === 'approaching') {
-            return true;
-          }
+        if (optMatch && optMatch.pickupWindowStatus === 'passed') {
+          return false; // Explicitly marked as already passed!
         }
       }
 
-      // 3. Evaluate ordered route stops sequence
+      // 3. Directional Forward Vector Check toward Destination
+      const destCoord = getCityCoordinates(destCity);
+      const truckLat = truck.lat || (truck.currentCoords && truck.currentCoords.lat) || 0;
+      const truckLng = truck.lng || (truck.currentCoords && truck.currentCoords.lng) || 0;
+      const hubLat = hub.lat || (hub.coordinates && hub.coordinates.lat) || 0;
+      const hubLng = hub.lng || (hub.coordinates && hub.coordinates.lng) || 0;
+
+      if (truckLat && truckLng && destCoord && hubLat && hubLng) {
+        const distKm = calculateHaversineDistanceKm({ lat: truckLat, lng: truckLng }, { lat: hubLat, lng: hubLng });
+        if (distKm <= 1.5 && truck.status === 'At Smart Hub') {
+          return true; // Truck is currently staged right at this hub's bay
+        }
+
+        // Vector Truck -> Destination
+        const vLat = destCoord.lat - truckLat;
+        const vLng = destCoord.lng - truckLng;
+        // Vector Truck -> Hub
+        const wLat = hubLat - truckLat;
+        const wLng = hubLng - truckLng;
+        const dot = (vLat * wLat) + (vLng * wLng);
+
+        if (dot < 0) {
+          return false; // Hub lies in the backward travel cone (BEHIND THE TRUCK)!
+        }
+      }
+
+      // 4. Evaluate ordered route stops sequence
       const routeStops = truck.route || truck.routeStops || [];
       const curCity = truck.currentLocation?.city || truck.currentCity || '';
       const curLoc = truck.currentLocationName || truck.location || '';
@@ -3901,28 +3923,6 @@
           }
         }
         return true;
-      }
-
-      // 4. Directional Forward Vector Check toward Destination
-      const destCoord = getCityCoordinates(destCity);
-      const truckLat = truck.lat || (truck.currentCoords && truck.currentCoords.lat) || 0;
-      const truckLng = truck.lng || (truck.currentCoords && truck.currentCoords.lng) || 0;
-
-      if (truckLat && truckLng && destCoord) {
-        const vLat = destCoord.lat - truckLat;
-        const vLng = destCoord.lng - truckLng;
-        const wLat = hub.lat - truckLat;
-        const wLng = hub.lng - truckLng;
-        const dot = (vLat * wLat) + (vLng * wLng);
-
-        const distKm = calculateHaversineDistanceKm({ lat: truckLat, lng: truckLng }, { lat: hub.lat, lng: hub.lng });
-        if (distKm <= 2.0 && truck.status === 'At Smart Hub') {
-          return true;
-        }
-
-        if (dot < 0) {
-          return false; // Hub lies in the backward cone!
-        }
       }
 
       return true;
@@ -4851,9 +4851,8 @@
     }
 
     function viewHubOnMap(hubId, truckId) {
-      const hub = HUBS.find(h => h.id === hubId) ||
-                  HUBS.find(h => h.city.toLowerCase().includes('hyderabad')) ||
-                  HUBS[0];
+      const recHub = activeRecommendationResultSet && activeRecommendationResultSet.topRecommendation && activeRecommendationResultSet.topRecommendation.hubRecommendation ? activeRecommendationResultSet.topRecommendation.hubRecommendation.recommendedHub?.hub : null;
+      const hub = HUBS.find(h => h.id === hubId) || recHub || HUBS[0];
       const truck = TRUCKS.find(t => t.id === truckId) ||
                     (activeRecommendationResultSet && activeRecommendationResultSet.topRecommendation ? activeRecommendationResultSet.topRecommendation.truck : null);
       if (!hub) return;

@@ -65,17 +65,38 @@ export function isHubAheadOfTruck(
     const optMatch = truck.optionalServiceHubs.find(
       opt => opt.hubId === hub.id || isCityMatch(opt.hubName, hub.name)
     );
-    if (optMatch) {
-      if (optMatch.pickupWindowStatus === 'passed') {
-        return false; // Explicitly marked as already passed!
-      }
-      if (optMatch.pickupWindowStatus === 'open' || optMatch.pickupWindowStatus === 'approaching') {
-        return true;
-      }
+    if (optMatch && optMatch.pickupWindowStatus === 'passed') {
+      return false; // Explicitly marked as already passed!
     }
   }
 
-  // 3. Evaluate ordered route stops sequence
+  // 3. Directional Forward Vector Check toward Destination
+  const destCoord = getCityCoordinates(destCity);
+  const truckLat = truck.currentCoords?.lat ?? truck.lat ?? 0;
+  const truckLng = truck.currentCoords?.lng ?? truck.lng ?? 0;
+  const hubLat = hub.coordinates?.lat ?? hub.lat ?? 0;
+  const hubLng = hub.coordinates?.lng ?? hub.lng ?? 0;
+
+  if (truckLat && truckLng && destCoord && hubLat && hubLng) {
+    const distKm = calculateHaversineDistanceKm({ lat: truckLat, lng: truckLng }, { lat: hubLat, lng: hubLng });
+    if (distKm <= 1.5 && truck.status === 'At Smart Hub') {
+      return true; // Truck is currently staged right at this hub's bay
+    }
+
+    // Vector Truck -> Destination
+    const vLat = destCoord.lat - truckLat;
+    const vLng = destCoord.lng - truckLng;
+    // Vector Truck -> Hub
+    const wLat = hubLat - truckLat;
+    const wLng = hubLng - truckLng;
+    const dot = (vLat * wLat) + (vLng * wLng);
+
+    if (dot < 0) {
+      return false; // Hub lies in the backward travel cone (BEHIND THE TRUCK)!
+    }
+  }
+
+  // 4. Evaluate ordered route stops sequence
   const routeStops = truck.route || truck.routeStops || [];
   const curCity = truck.currentLocation?.city || truck.currentCity || '';
   const curLoc = truck.currentLocationName || truck.location || '';
@@ -118,28 +139,6 @@ export function isHubAheadOfTruck(
       }
     }
     return true;
-  }
-
-  // 4. Directional Forward Vector Check toward Destination
-  const destCoord = getCityCoordinates(destCity);
-  const truckLat = truck.currentCoords?.lat ?? truck.lat ?? 0;
-  const truckLng = truck.currentCoords?.lng ?? truck.lng ?? 0;
-
-  if (truckLat && truckLng && destCoord) {
-    const vLat = destCoord.lat - truckLat;
-    const vLng = destCoord.lng - truckLng;
-    const wLat = hub.coordinates.lat - truckLat;
-    const wLng = hub.coordinates.lng - truckLng;
-    const dot = (vLat * wLat) + (vLng * wLng);
-
-    const distKm = calculateHaversineDistanceKm({ lat: truckLat, lng: truckLng }, hub.coordinates);
-    if (distKm <= 2.0 && truck.status === 'At Smart Hub') {
-      return true;
-    }
-
-    if (dot < 0) {
-      return false; // Hub lies in the backward cone!
-    }
   }
 
   return true;
