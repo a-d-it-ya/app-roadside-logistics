@@ -1,0 +1,4 @@
+{
+  "summary": "Resilient authService with PostgreSQL backend and fallback for zero-downtime Vercel deployment",
+  "updatedAt": "2026-08-31T13:46:53.131787600Z"
+}

@@ -1,0 +1,4 @@
+{
+  "summary": "Initial Alembic migration creating users, organizations, organization_members, and refresh_sessions tables",
+  "updatedAt": "2026-08-31T13:08:20.996311200Z"
+}
