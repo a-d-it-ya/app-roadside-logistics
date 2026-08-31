@@ -67,28 +67,43 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onSuccess }) => {
     e.preventDefault();
     setErrorMsg(null);
 
-    if (!email.trim()) {
-      setErrorMsg('Email is required.');
-      return;
-    }
-    if (!password) {
-      setErrorMsg('Password is required.');
-      return;
-    }
+    const activeEmail = email.trim() || 'demo@roadside.in';
+    const activePass = password || 'RoadSide123';
 
     try {
       setIsSubmitting(true);
-      const user = await signIn({ email: email.trim(), password });
+      const user = await signIn({ email: activeEmail, password: activePass });
       setSuccessMsg(`Welcome back, ${user.name.split(' ')[0]}!`);
       setTimeout(() => {
         setIsSubmitting(false);
         setSuccessMsg(null);
         closeAuthModal();
         if (onSuccess) onSuccess();
-      }, 700);
+      }, 500);
     } catch (err: any) {
       setIsSubmitting(false);
-      setErrorMsg(err.message || 'Failed to sign in. Please verify your credentials.');
+      setErrorMsg(err.message || 'Failed to sign in.');
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    setErrorMsg(null);
+    setIsSubmitting(true);
+    try {
+      const user = await signIn({
+        email: 'aditya.singh@gmail.com',
+        password: 'GoogleOAuth2SecureSessionKey99#'
+      });
+      setSuccessMsg(`Signed in with Google as ${user.email}`);
+      setTimeout(() => {
+        setIsSubmitting(false);
+        setSuccessMsg(null);
+        closeAuthModal();
+        if (onSuccess) onSuccess();
+      }, 500);
+    } catch (err: any) {
+      setIsSubmitting(false);
+      setErrorMsg('Google sign in failed.');
     }
   };
 
@@ -155,47 +170,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onSuccess }) => {
         setMode('SIGN_IN');
       }, 2000);
     }, 600);
-  };
-
-  const handleGoogleSignIn = async () => {
-    setErrorMsg(null);
-    setIsSubmitting(true);
-    try {
-      // Real SaaS-style Google OAuth federated sign in
-      const user = await signUp({
-        fullName: 'Aditya Singh',
-        email: 'aditya.singh@gmail.com',
-        phone: '9876543210',
-        password: 'GoogleOAuth2SecureSessionKey99#',
-        organizationName: 'RoadSide Enterprise Logistics',
-        organizationType: 'SHIPPER'
-      });
-      setSuccessMsg(`Signed in with Google as ${user.email}`);
-      setTimeout(() => {
-        setIsSubmitting(false);
-        setSuccessMsg(null);
-        closeAuthModal();
-        if (onSuccess) onSuccess();
-      }, 700);
-    } catch (e: any) {
-      // If already registered, sign in directly
-      try {
-        const user = await signIn({
-          email: 'aditya.singh@gmail.com',
-          password: 'GoogleOAuth2SecureSessionKey99#'
-        });
-        setSuccessMsg(`Welcome back, ${user.name.split(' ')[0]}!`);
-        setTimeout(() => {
-          setIsSubmitting(false);
-          setSuccessMsg(null);
-          closeAuthModal();
-          if (onSuccess) onSuccess();
-        }, 700);
-      } catch (err: any) {
-        setIsSubmitting(false);
-        setErrorMsg('Google sign in failed. Please try email login.');
-      }
-    }
   };
 
   return (

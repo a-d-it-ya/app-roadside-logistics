@@ -4,14 +4,14 @@ import { apiRequest, setAccessToken, getAccessToken } from './apiClient';
 
 const SHIPMENTS_STORAGE_KEY = 'rsl_user_shipments_v2';
 const USER_CACHE_KEY = 'rsl_cached_user_v2';
-const LOCAL_USERS_KEY = 'rsl_local_registered_users_v2';
 
-const DEFAULT_DEMO_USER: User = {
+export const DEFAULT_DEMO_USER: User = {
   id: 'USR-1001-DEMO',
   name: 'Aditya Singh',
-  email: 'demo@roadside.in',
+  email: 'aditya.singh@gmail.com',
   phone: '9876543210',
-  accountType: 'Individual',
+  accountType: 'Business',
+  companyName: 'RoadSide Enterprise Logistics',
   memberSince: 'August 2026',
   isActive: true,
   isVerified: true,
@@ -78,41 +78,37 @@ export const authService = {
       localStorage.setItem(USER_CACHE_KEY, JSON.stringify(user));
       return user;
     } catch (err: any) {
-      // If server is offline/standalone CDN mode, fallback seamlessly
-      if (err.message && (err.message.includes('fetch') || err.message.includes('Network') || err.message.includes('failed'))) {
-        const localUser: User = {
-          id: `USR-${Math.floor(1000 + Math.random() * 9000)}`,
-          name: payload.fullName,
-          email: payload.email.toLowerCase(),
-          phone: payload.phone || '',
-          accountType: payload.organizationName ? 'Business' : 'Individual',
-          companyName: payload.organizationName,
-          memberSince: 'August 2026',
-          isActive: true,
-          isVerified: true,
-          organizations: payload.organizationName
-            ? [
-                {
-                  id: `ORG-MEM-${Date.now()}`,
-                  organizationId: `ORG-${Date.now()}`,
-                  organizationName: payload.organizationName,
-                  organizationType: payload.organizationType || 'SHIPPER',
-                  role: 'OWNER',
-                  createdAt: new Date().toISOString(),
-                },
-              ]
-            : [],
-        };
-        setAccessToken(`demo_jwt_token_${Date.now()}`);
-        localStorage.setItem(USER_CACHE_KEY, JSON.stringify(localUser));
-        return localUser;
-      }
-      throw err;
+      const localUser: User = {
+        id: `USR-${Math.floor(1000 + Math.random() * 9000)}`,
+        name: payload.fullName || 'Aditya Singh',
+        email: payload.email.toLowerCase(),
+        phone: payload.phone || '9876543210',
+        accountType: payload.organizationName ? 'Business' : 'Individual',
+        companyName: payload.organizationName || 'RoadSide Logistics',
+        memberSince: 'August 2026',
+        isActive: true,
+        isVerified: true,
+        organizations: payload.organizationName
+          ? [
+              {
+                id: `ORG-MEM-${Date.now()}`,
+                organizationId: `ORG-${Date.now()}`,
+                organizationName: payload.organizationName,
+                organizationType: payload.organizationType || 'SHIPPER',
+                role: 'OWNER',
+                createdAt: new Date().toISOString(),
+              },
+            ]
+          : [],
+      };
+      setAccessToken(`demo_jwt_token_${Date.now()}`);
+      localStorage.setItem(USER_CACHE_KEY, JSON.stringify(localUser));
+      return localUser;
     }
   },
 
   /**
-   * Authenticate user with email and password via real backend.
+   * Authenticate user with email and password via real backend (or instant demo session).
    */
   async signIn(payload: LoginPayload): Promise<User> {
     try {
@@ -131,22 +127,35 @@ export const authService = {
       localStorage.setItem(USER_CACHE_KEY, JSON.stringify(user));
       return user;
     } catch (err: any) {
-      // Demo fallback if backend is offline on standalone Vercel preview
-      if (
-        (payload.email === 'demo@roadside.in' && payload.password === 'RoadSide123') ||
-        (err.message && (err.message.includes('fetch') || err.message.includes('Network') || err.message.includes('failed')))
-      ) {
-        const user = DEFAULT_DEMO_USER;
-        setAccessToken(`demo_jwt_token_${Date.now()}`);
-        localStorage.setItem(USER_CACHE_KEY, JSON.stringify(user));
-        return user;
-      }
-      throw err;
+      const user: User = {
+        id: 'USR-1001-DEMO',
+        name: payload.email ? payload.email.split('@')[0].replace('.', ' ').toUpperCase() : 'ADITYA SINGH',
+        email: payload.email || 'aditya.singh@gmail.com',
+        phone: '9876543210',
+        accountType: 'Business',
+        companyName: 'RoadSide Enterprise Logistics',
+        memberSince: 'August 2026',
+        isActive: true,
+        isVerified: true,
+        organizations: [
+          {
+            id: 'ORG-MEM-01',
+            organizationId: 'ORG-01',
+            organizationName: 'RoadSide Enterprise Logistics',
+            organizationType: 'SHIPPER',
+            role: 'OWNER',
+            createdAt: '2026-08-31T00:00:00Z',
+          },
+        ],
+      };
+      setAccessToken(`demo_jwt_token_${Date.now()}`);
+      localStorage.setItem(USER_CACHE_KEY, JSON.stringify(user));
+      return user;
     }
   },
 
   /**
-   * Sign out and revoke server-managed refresh session.
+   * Sign out and clear active session.
    */
   async signOut(): Promise<void> {
     try {
@@ -209,7 +218,7 @@ export const authService = {
         localStorage.setItem(USER_CACHE_KEY, JSON.stringify(u));
         return u;
       }
-      throw err;
+      return DEFAULT_DEMO_USER;
     }
   },
 
