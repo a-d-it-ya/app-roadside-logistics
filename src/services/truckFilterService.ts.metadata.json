@@ -1,4 +1,4 @@
 {
-  "summary": "Updated truckFilterService with 5-gate eligibility and pickup window check.",
-  "updatedAt": "2026-08-31T10:54:35.673911500Z"
+  "summary": "Strict Two-Sided Route Direction and Origin Pickup Validation in truckFilterService.ts",
+  "updatedAt": "2026-08-31T14:44:43.289907800Z"
 }

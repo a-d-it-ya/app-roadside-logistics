@@ -738,5 +738,128 @@ export const INITIAL_TRUCKS: Truck[] = [
     routePolyline: FREIGHT_CORRIDORS[8].coordinates,
     currentRouteProgress: 0.40,
     simulatedPriceEstimateRs: 5800
+  },
+
+  // ----------------------------------------------------
+  // TRUCK 13: RSL-8840 (Chennai -> Nellore -> Vijayawada -> Hyderabad -> BEST VALUE NORTHBOUND ✅)
+  // ----------------------------------------------------
+  {
+    id: 'RSL-8840',
+    registrationNumber: 'TN 04 BC 8840',
+    driverName: 'M. Senthil Nathan',
+    carrierName: 'Coromandel-Deccan Express Line',
+    vehicleClass: '32ft Multi-Axle Heavy Truck (14T)',
+    vehicleType: 'Heavy Truck',
+    origin: 'Chennai',
+    destination: 'Hyderabad',
+    overallOrigin: 'Chennai, Tamil Nadu',
+    overallDestination: 'Hyderabad, Telangana',
+    currentLocation: { city: 'Chennai', landmark: 'Madhavaram Northern Concourse', latitude: 13.1480, longitude: 80.2310 },
+    currentLocationName: 'NH-16 Northern Express (At Chennai Port Gateway Hub)',
+    currentCoords: { lat: 13.1480, lng: 80.2310 },
+    heading: 340,
+    route: ['Chennai', 'Nellore', 'Ongole', 'Vijayawada', 'Suryapet', 'Hyderabad Central Hub'],
+    routeStops: ['Chennai Port Gateway Hub', 'Nellore Interchange', 'Ongole Node', 'Vijayawada Bypass', 'Suryapet Dock', 'Hyderabad Central Hub'],
+    optionalServiceHubs: [
+      {
+        hubId: 'HUB-MAA-01',
+        hubName: 'Chennai Port Gateway & Madhavaram Terminal',
+        city: 'Chennai',
+        serviceRegion: 'Chennai',
+        coordinates: { lat: 13.1480, lng: 80.2310 },
+        estimatedArrivalMinutesFromNow: 35,
+        pickupWindowStatus: 'approaching'
+      },
+      {
+        hubId: 'HUB-MAA-02',
+        hubName: 'Sriperumbudur Auto-Freight Corridor Hub',
+        city: 'Chennai',
+        serviceRegion: 'Chennai',
+        coordinates: { lat: 12.9690, lng: 79.9410 },
+        estimatedArrivalMinutesFromNow: 70,
+        pickupWindowStatus: 'open'
+      }
+    ],
+    totalCapacityKg: 14000,
+    availableCapacityKg: 3800,
+    bookedCapacityKg: 10200,
+    status: 'Corridor Cruising',
+    speedKmH: 62,
+    nextHubEtaMinutes: 35,
+    estimatedArrival: 'Tomorrow, 07:30 AM',
+    rating: 4.92,
+    supportedCargoTypes: [
+      'General Cargo',
+      'Electronics',
+      'Industrial Materials',
+      'Fragile Goods',
+      'Textiles & Garments',
+      'FMCG & Packaged Goods'
+    ],
+    compatibleCargoTypes: [
+      'General Cargo',
+      'Electronics',
+      'Industrial Materials',
+      'Fragile Goods',
+      'Textiles & Garments'
+    ],
+    routePolyline: FREIGHT_CORRIDORS[1].coordinates,
+    currentRouteProgress: 0.10,
+    simulatedPriceEstimateRs: 4750
+  },
+
+  // ----------------------------------------------------
+  // TRUCK 14: RSL-4920 (Chennai -> Sriperumbudur -> Vellore -> Bengaluru)
+  // ----------------------------------------------------
+  {
+    id: 'RSL-4920',
+    registrationNumber: 'TN 22 AX 4920',
+    driverName: 'R. Karthik',
+    carrierName: 'Southern Star Logistics',
+    vehicleClass: '28ft Container Truck (10T)',
+    vehicleType: 'Container Truck',
+    origin: 'Chennai',
+    destination: 'Bengaluru',
+    overallOrigin: 'Chennai (Sriperumbudur Hub)',
+    overallDestination: 'Bengaluru (Hosakote Terminal)',
+    currentLocation: { city: 'Chennai', landmark: 'Sriperumbudur SIPCOT Gate', latitude: 12.9690, longitude: 79.9410 },
+    currentLocationName: 'Sriperumbudur Hub Concourse (Loading at Bay 4)',
+    currentCoords: { lat: 12.9690, lng: 79.9410 },
+    heading: 260,
+    route: ['Chennai', 'Sriperumbudur Hub', 'Vellore', 'Hosur', 'Bengaluru'],
+    routeStops: ['Chennai Madhavaram', 'Sriperumbudur Hub', 'Vellore Node', 'Hosur Border', 'Bengaluru Hosakote'],
+    optionalServiceHubs: [
+      {
+        hubId: 'HUB-MAA-02',
+        hubName: 'Sriperumbudur Auto-Freight Corridor Hub',
+        city: 'Chennai',
+        serviceRegion: 'Chennai',
+        coordinates: { lat: 12.9690, lng: 79.9410 },
+        estimatedArrivalMinutesFromNow: 25,
+        pickupWindowStatus: 'open'
+      }
+    ],
+    totalCapacityKg: 10000,
+    availableCapacityKg: 2800,
+    bookedCapacityKg: 7200,
+    status: 'At Smart Hub',
+    speedKmH: 0,
+    nextHubEtaMinutes: 25,
+    estimatedArrival: 'Tonight, 11:30 PM',
+    rating: 4.88,
+    supportedCargoTypes: [
+      'General Cargo',
+      'Electronics',
+      'Industrial Materials',
+      'Pharma & Medical Supplies'
+    ],
+    compatibleCargoTypes: [
+      'General Cargo',
+      'Electronics',
+      'Industrial Materials'
+    ],
+    routePolyline: FREIGHT_CORRIDORS[4].coordinates,
+    currentRouteProgress: 0.15,
+    simulatedPriceEstimateRs: 3900
   }
 ];

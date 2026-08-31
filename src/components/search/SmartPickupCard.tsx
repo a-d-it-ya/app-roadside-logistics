@@ -40,9 +40,9 @@ export const SmartPickupCard: React.FC<SmartPickupCardProps> = ({
       {/* Header Badge */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
-          <span className="text-[10px] font-mono uppercase font-bold text-cyan-300">
-            📍 Conditional Hub Stop Activated
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+          <span className="text-[10px] font-mono uppercase font-bold text-emerald-300">
+            📍 Verified Pickup Hub ({hub.city})
           </span>
         </div>
         <div className="flex items-center gap-1">
@@ -59,8 +59,8 @@ export const SmartPickupCard: React.FC<SmartPickupCardProps> = ({
       <div>
         <h4 className="text-xs font-bold text-white flex items-center justify-between">
           <span>{hub.name}</span>
-          <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-cyan-950 text-cyan-300 border border-cyan-500/30">
-            Optional Stop Activated
+          <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-500/30">
+            Origin Pickup
           </span>
         </h4>
         <p className="text-[10px] text-slate-400 font-mono mt-0.5 truncate">

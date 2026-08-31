@@ -4,137 +4,176 @@ import { calculateHaversineDistanceKm, getCityCoordinates } from '../utils/geoUt
 /**
  * Normalizes city names for fuzzy/case-insensitive matching.
  */
-function normalizeCity(city: string): string {
-  return (city || '').toLowerCase().trim();
+export function normalizeCity(city: string): string {
+  return (city || '').toLowerCase().trim().replace(/[,.-]/g, ' ');
 }
 
 /**
- * Gate 1: Destination Direction Compatibility
- * Checks if the truck's continuing journey moves toward the requested destination.
+ * Checks if a city name matches a target string token
  */
-export function filterByDestinationCompatibility(truck: Truck, targetDestination: string): boolean {
-  if (!truck || !targetDestination) return false;
-  const target = normalizeCity(targetDestination);
-
-  if (normalizeCity(truck.destination).includes(target)) return true;
-  if (truck.overallDestination && normalizeCity(truck.overallDestination).includes(target)) return true;
-
-  const stops = truck.route || truck.routeStops || [];
-  return stops.some(stop => normalizeCity(stop).includes(target));
+export function isCityMatch(cityName: string, targetName: string): boolean {
+  const c = normalizeCity(cityName);
+  const t = normalizeCity(targetName);
+  if (!c || !t) return false;
+  return c.includes(t) || t.includes(c);
 }
 
 /**
- * Gate 2: Optional Service Corridor Support
- * Checks if the truck supports the requested origin as an optional service hub on its corridor.
+ * Core Invariant: Validates Two-Sided Route Sequence & Direction.
+ * The truck MUST visit the SHIPMENT ORIGIN first, and subsequently visit the SHIPMENT DESTINATION.
+ * Origin stop sequence MUST be < Destination stop sequence on future/remaining journey.
+ * Reverses (e.g. searching Chennai -> Hyderabad on a Hyderabad -> Chennai truck) are strictly REJECTED.
  */
-export function filterByOptionalCorridorSupport(truck: Truck, targetOrigin: string): boolean {
-  if (!truck || !targetOrigin) return false;
-  const origin = normalizeCity(targetOrigin);
+export function validateRouteSequenceAndDirection(truck: Truck, criteria: ShipmentSearchCriteria): {
+  isValid: boolean;
+  reason?: string;
+  originIndex?: number;
+  destIndex?: number;
+} {
+  const origin = criteria.origin;
+  const dest = criteria.destination;
 
-  // Check explicit optionalServiceHubs list
-  if (truck.optionalServiceHubs && truck.optionalServiceHubs.length > 0) {
-    const hasHub = truck.optionalServiceHubs.some(
-      h => normalizeCity(h.city).includes(origin) || normalizeCity(h.serviceRegion).includes(origin)
-    );
-    if (hasHub) return true;
+  if (!truck || !origin || !dest) {
+    return { isValid: false, reason: 'Missing search parameters' };
   }
 
-  // Check truck route or origin
-  if (normalizeCity(truck.origin).includes(origin)) return true;
-  if (truck.overallOrigin && normalizeCity(truck.overallOrigin).includes(origin)) return true;
+  // 1. Explicit Direct Check: Reject Reverse Terminus Routes
+  const tOrigin = truck.origin || truck.overallOrigin || '';
+  const tDest = truck.dest || truck.destination || truck.overallDestination || '';
 
-  const stops = truck.route || truck.routeStops || [];
-  return stops.some(stop => normalizeCity(stop).includes(origin));
-}
+  // If truck starts at destination and ends at origin -> 100% REVERSED!
+  if (isCityMatch(tOrigin, dest) && isCityMatch(tDest, origin)) {
+    return { isValid: false, reason: `Vehicle is traveling in the opposite direction (${tOrigin} -> ${tDest})` };
+  }
 
-/**
- * Gate 3: Pickup Eligibility Window (Position & Upstream Route Check)
- * Verifies that the truck is UPSTREAM / APPROACHING the pickup hub and has NOT already left/passed it.
- */
-export function filterByPickupEligibilityWindow(truck: Truck, targetOrigin: string): boolean {
-  if (!truck || !targetOrigin) return false;
-  const origin = normalizeCity(targetOrigin);
+  // 2. Full Ordered Route Stops Evaluation
+  const routeStops = truck.route || truck.routeStops || [];
+  let originIdx = -1;
+  let destIdx = -1;
 
-  // 1. Check explicit optionalServiceHubs window status
-  if (truck.optionalServiceHubs && truck.optionalServiceHubs.length > 0) {
-    const matchingHubs = truck.optionalServiceHubs.filter(
-      h => normalizeCity(h.city).includes(origin) || normalizeCity(h.serviceRegion).includes(origin)
-    );
-
-    if (matchingHubs.length > 0) {
-      // If all matching hubs are 'passed', the truck has already left the origin
-      const anyActive = matchingHubs.some(h => h.pickupWindowStatus === 'open' || h.pickupWindowStatus === 'approaching');
-      if (!anyActive) return false;
+  for (let i = 0; i < routeStops.length; i++) {
+    const stop = routeStops[i];
+    if (originIdx === -1 && isCityMatch(stop, origin)) {
+      originIdx = i;
+    }
+    if (isCityMatch(stop, dest)) {
+      destIdx = i;
     }
   }
 
-  // 2. Check location string or currentCity for "passed" indicators
-  const locName = normalizeCity(truck.currentLocationName || truck.currentLocation?.city || '');
-  if (locName.includes('passed') || locName.includes('departed')) {
-    if (locName.includes(origin)) return false;
+  // Check overall origin/dest if not found in stops list
+  if (originIdx === -1 && isCityMatch(tOrigin, origin)) {
+    originIdx = 0;
+  }
+  if (destIdx === -1 && isCityMatch(tDest, dest)) {
+    destIdx = routeStops.length > 0 ? routeStops.length : 99;
   }
 
-  // 3. Check sequence order along route
-  const stops = (truck.route || truck.routeStops || []).map(s => normalizeCity(s));
-  const originIdx = stops.findIndex(s => s.includes(origin));
-  
-  if (originIdx !== -1) {
-    // If truck is currently at a city that appears AFTER the origin in the route sequence, it already left!
-    const currentCity = normalizeCity(truck.currentLocation?.city || truck.currentLocationName || '');
-    const currentCityIdx = stops.findIndex(s => s.includes(currentCity));
-    if (currentCityIdx > originIdx) {
-      return false; // Truck is already past the origin hub!
+  // Both origin and destination must be served on this corridor
+  if (originIdx === -1) {
+    // Check if truck has optional service hubs in origin city
+    const hasOriginHub = (truck.optionalServiceHubs || []).some(h => isCityMatch(h.city, origin) || isCityMatch(h.serviceRegion, origin));
+    if (!hasOriginHub) {
+      return { isValid: false, reason: `Vehicle corridor does not serve origin ${origin}` };
+    }
+    originIdx = 0;
+  }
+
+  if (destIdx === -1) {
+    return { isValid: false, reason: `Vehicle corridor does not continue to destination ${dest}` };
+  }
+
+  // CRITICAL INVARIANT: Origin must strictly precede Destination
+  if (originIdx >= destIdx) {
+    return {
+      isValid: false,
+      reason: `Route direction invalid: ${dest} is reached before ${origin} on truck's route`
+    };
+  }
+
+  // 3. Upstream / Passed Check: Has the truck already passed the origin?
+  const currentCity = truck.currentLocation?.city || truck.currentCity || truck.currentLocationName || '';
+  const currentLocLower = normalizeCity(truck.currentLocationName || currentCity);
+
+  if (currentLocLower.includes('passed') || currentLocLower.includes('departed')) {
+    if (isCityMatch(currentLocLower, origin)) {
+      return { isValid: false, reason: `Vehicle has already departed ${origin}` };
     }
   }
 
-  return true;
+  // Check if truck's current stop index is past the origin
+  if (typeof truck.currentStopIndex === 'number' && truck.currentStopIndex > originIdx) {
+    return { isValid: false, reason: `Vehicle has already passed ${origin}` };
+  }
+
+  // Check optionalServiceHubs status
+  if (truck.optionalServiceHubs && truck.optionalServiceHubs.length > 0) {
+    const originHubs = truck.optionalServiceHubs.filter(h => isCityMatch(h.city, origin) || isCityMatch(h.serviceRegion, origin));
+    if (originHubs.length > 0) {
+      const allPassed = originHubs.every(h => h.pickupWindowStatus === 'passed');
+      if (allPassed) {
+        return { isValid: false, reason: `All pickup windows in ${origin} have closed` };
+      }
+    }
+  }
+
+  return { isValid: true, originIndex: originIdx, destIndex: destIdx };
 }
 
 /**
- * Gate 4: Available Capacity & Cargo Compatibility
+ * Gate 1 & 2: Combined Two-Sided Corridor Eligibility
+ */
+export function filterByRouteAndDirection(truck: Truck, criteria: ShipmentSearchCriteria): boolean {
+  const result = validateRouteSequenceAndDirection(truck, criteria);
+  return result.isValid;
+}
+
+/**
+ * Gate 3: Available Capacity Check
  */
 export function filterByCapacity(truck: Truck, requiredWeightKg: number): boolean {
-  if (!truck || typeof truck.availableCapacityKg !== 'number') return false;
-  return truck.availableCapacityKg >= requiredWeightKg;
+  if (!truck) return false;
+  const avail = truck.availableCapacityKg ?? truck.availCapKg ?? 0;
+  return avail >= requiredWeightKg;
 }
 
-export function filterByCargoCompatibility(truck: Truck, requiredCargoType: CargoType): boolean {
-  if (!truck) return false;
-  const supported = truck.supportedCargoTypes || truck.compatibleCargoTypes || [];
+/**
+ * Gate 4: Cargo Compatibility Check
+ */
+export function filterByCargoCompatibility(truck: Truck, requiredCargoType?: CargoType): boolean {
+  if (!truck || !requiredCargoType) return true;
+  const supported = truck.supportedCargoTypes || truck.compatibleCargoTypes || truck.supportedCargo || [];
+  if (supported.length === 0) return true;
   return supported.includes(requiredCargoType);
 }
 
 /**
  * Gate 5: Time Feasibility & Cargo Readiness
- * Validates that cargo can be delivered to the hub BEFORE the truck enters the hub (Truck ETA - 15m cutoff).
  */
 export function filterByTimeFeasibility(
   truck: Truck,
   criteria: ShipmentSearchCriteria,
   availableHubs?: LogisticsHub[]
 ): boolean {
-  const origin = normalizeCity(criteria.origin);
+  const origin = criteria.origin;
+  let truckEtaMinutes = truck.nextHubEtaMinutes || truck.eta || 45;
 
-  // Find estimated arrival at the relevant hub
-  let truckEtaMinutes = truck.nextHubEtaMinutes || 45;
   if (truck.optionalServiceHubs && truck.optionalServiceHubs.length > 0) {
     const targetHub = truck.optionalServiceHubs.find(
-      h => normalizeCity(h.city).includes(origin) || normalizeCity(h.serviceRegion).includes(origin)
+      h => isCityMatch(h.city, origin) || isCityMatch(h.serviceRegion, origin)
     );
     if (targetHub && typeof targetHub.estimatedArrivalMinutesFromNow === 'number') {
       truckEtaMinutes = targetHub.estimatedArrivalMinutesFromNow;
     }
   }
 
-  // If truck has already departed or ETA is under 25 mins, customer cannot physically deliver cargo in time
-  const customerTravelTimeMinutes = 15; // Drive to hub
-  const hubProcessingMinutes = 15;      // Bay intake & pallet verification
-  const cargoReadyMinutes = customerTravelTimeMinutes + hubProcessingMinutes; // 30 mins required
+  const customerTravelTimeMinutes = 15;
+  const hubProcessingMinutes = 15;
+  const cargoReadyMinutes = customerTravelTimeMinutes + hubProcessingMinutes; // 30 mins
 
-  const safetyBufferMinutes = 15; // Truck loading cutoff before departure
+  const safetyBufferMinutes = 15;
   const loadingCutoffMinutes = Math.max(0, truckEtaMinutes - safetyBufferMinutes);
 
-  // Cargo must be ready at or before cutoff
   return cargoReadyMinutes <= loadingCutoffMinutes;
 }
 
@@ -150,19 +189,16 @@ export function executeTruckFilter(
   const nonMatchingTrucks: Truck[] = [];
 
   trucks.forEach(truck => {
-    // Gate 1: Destination Direction
-    const hasDestFit = filterByDestinationCompatibility(truck, criteria.destination);
-    // Gate 2: Optional Service Corridor
-    const hasCorridorFit = filterByOptionalCorridorSupport(truck, criteria.origin);
-    // Gate 3: Pickup Eligibility Window (NOT passed)
-    const isWindowOpen = filterByPickupEligibilityWindow(truck, criteria.origin);
-    // Gate 4: Capacity & Cargo Fit
+    // 1. Two-Sided Route & Direction Validity (Origin -> Destination in forward sequence)
+    const hasValidRoute = filterByRouteAndDirection(truck, criteria);
+    // 2. Capacity
     const hasCapacity = filterByCapacity(truck, criteria.weightKg);
+    // 3. Cargo Type
     const hasCargoFit = filterByCargoCompatibility(truck, criteria.cargoType);
-    // Gate 5: Time Feasibility
+    // 4. Time Feasibility
     const isTimeFeasible = filterByTimeFeasibility(truck, criteria, availableHubs);
 
-    if (hasDestFit && hasCorridorFit && isWindowOpen && hasCapacity && hasCargoFit && isTimeFeasible) {
+    if (hasValidRoute && hasCapacity && hasCargoFit && isTimeFeasible) {
       matchingTrucks.push(truck);
     } else {
       nonMatchingTrucks.push(truck);

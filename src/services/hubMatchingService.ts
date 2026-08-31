@@ -10,6 +10,7 @@ import {
   calculateHaversineDistanceKm,
   getCityCoordinates
 } from '../utils/geoUtils';
+import { isCityMatch, normalizeCity } from './truckFilterService';
 
 export const ROUTE_LOCKED_HUB_WEIGHTS = {
   CUSTOMER_CONVENIENCE: 0.40,
@@ -43,7 +44,9 @@ export function formatTimeBuffer(minutes: number): string {
 }
 
 /**
- * Finds explicit upcoming planned stops on the truck's locked route
+ * Finds explicit upcoming planned pickup stops for the truck.
+ * ABSOLUTE INVARIANT: The pickup hub MUST strictly belong to the shipment ORIGIN city/region.
+ * Destination hubs (or hubs beyond destination) are NEVER allowed as pickup points.
  */
 export function getUpcomingPlannedStops(
   truck: Truck,
@@ -51,87 +54,69 @@ export function getUpcomingPlannedStops(
   availableHubs: LogisticsHub[]
 ): { plannedStop: PlannedRouteStop; hub: LogisticsHub }[] {
   const stops: { plannedStop: PlannedRouteStop; hub: LogisticsHub }[] = [];
-  const currentIdx = truck.currentStopIndex ?? 0;
-  const destCity = (criteria.destination || '').toLowerCase().trim();
-  const originCity = (criteria.origin || '').toLowerCase().trim();
+  const originCity = criteria.origin;
+  const destCity = criteria.destination;
 
-  // If the truck has explicit plannedStops, evaluate them sequentially
-  if (truck.plannedStops && truck.plannedStops.length > 0) {
-    // Find index of destination stop to ensure pickup occurs strictly BEFORE destination
-    let destStopIndex = 999;
-    truck.plannedStops.forEach(stop => {
-      if (stop.city.toLowerCase().includes(destCity) || destCity.includes(stop.city.toLowerCase())) {
-        if (stop.stopIndex < destStopIndex) destStopIndex = stop.stopIndex;
-      }
-    });
-
-    truck.plannedStops.forEach(stop => {
-      // 1. Must be upcoming (not passed)
-      if (stop.status === 'passed' || stop.stopIndex < currentIdx) {
-        return;
+  // 1. Check explicit optionalServiceHubs on truck for ORIGIN-matching hubs
+  if (truck.optionalServiceHubs && truck.optionalServiceHubs.length > 0) {
+    truck.optionalServiceHubs.forEach(opt => {
+      if (opt.pickupWindowStatus === 'passed') return;
+      if (!isCityMatch(opt.city, originCity) && !isCityMatch(opt.serviceRegion, originCity)) {
+        return; // Reject: not in shipment origin region!
       }
 
-      // 2. Must occur strictly BEFORE the destination stop
-      if (stop.stopIndex >= destStopIndex) {
-        return;
-      }
+      const hub = availableHubs.find(h => h.id === opt.hubId) ||
+                  availableHubs.find(h => isCityMatch(h.city, originCity));
 
-      // 3. Must be associated with or proximate to the shipment origin cluster
-      const stopCity = stop.city.toLowerCase();
-      const isOriginRelated = stopCity.includes(originCity) || originCity.includes(stopCity);
-      
-      const hub = availableHubs.find(h => h.id === stop.hubId) ||
-                  availableHubs.find(h => h.city.toLowerCase().includes(stopCity));
-
-      if (hub && isOriginRelated) {
-        // 4. Directional Forward-Path Check: Hub must be ahead of truck toward destination
-        const destCoord = getCityCoordinates(destCity);
-        const vLat = destCoord.lat - truck.currentCoords.lat;
-        const vLng = destCoord.lng - truck.currentCoords.lng;
-        const wLat = hub.coordinates.lat - truck.currentCoords.lat;
-        const wLng = hub.coordinates.lng - truck.currentCoords.lng;
-        const dot = (vLat * wLat) + (vLng * wLng);
-        const distKm = calculateHaversineDistanceKm(truck.currentCoords, hub.coordinates);
-
-        if (distKm <= 1.5 || dot > 0) {
-          stops.push({ plannedStop: stop, hub });
-        }
-      }
-    });
-  } else {
-    // Fallback if truck route is string array: synthesize planned stops
-    const routeList = truck.route || [];
-    const originIdx = routeList.findIndex(r => r.toLowerCase().includes(originCity));
-    const destIdx = routeList.findIndex(r => r.toLowerCase().includes(destCity));
-
-    if (originIdx !== -1 && destIdx !== -1 && originIdx < destIdx) {
-      const destCoord = getCityCoordinates(destCity);
-      // Filter hubs in the origin city that are in the forward travel direction
-      const originHubs = availableHubs.filter(h => {
-        if (!h.city.toLowerCase().includes(originCity)) return false;
-        const vLat = destCoord.lat - truck.currentCoords.lat;
-        const vLng = destCoord.lng - truck.currentCoords.lng;
-        const wLat = h.coordinates.lat - truck.currentCoords.lat;
-        const wLng = h.coordinates.lng - truck.currentCoords.lng;
-        const dot = (vLat * wLat) + (vLng * wLng);
-        const distKm = calculateHaversineDistanceKm(truck.currentCoords, h.coordinates);
-        return distKm <= 1.5 || dot > 0;
-      });
-
-      originHubs.forEach((hub, idx) => {
+      if (hub && isCityMatch(hub.city, originCity)) {
+        const eta = opt.estimatedArrivalMinutesFromNow || truck.nextHubEtaMinutes || 45;
         const synthStop: PlannedRouteStop = {
-          stopIndex: originIdx,
+          stopIndex: 0,
           hubId: hub.id,
           hubName: hub.name,
           city: hub.city,
           coordinates: hub.coordinates,
-          estimatedArrivalMinutesFromNow: truck.status === 'At Smart Hub' ? 20 : (truck.nextHubEtaMinutes || 45),
-          scheduledTimeFormatted: formatSimulatedTime(truck.status === 'At Smart Hub' ? 20 : (truck.nextHubEtaMinutes || 45)),
+          estimatedArrivalMinutesFromNow: eta,
+          scheduledTimeFormatted: formatSimulatedTime(eta),
           status: 'upcoming'
         };
         stops.push({ plannedStop: synthStop, hub });
-      });
-    }
+      }
+    });
+  }
+
+  // 2. Check plannedStops on truck
+  if (truck.plannedStops && truck.plannedStops.length > 0) {
+    truck.plannedStops.forEach(stop => {
+      if (stop.status === 'passed') return;
+      if (!isCityMatch(stop.city, originCity)) return; // Strict origin check!
+
+      const hub = availableHubs.find(h => h.id === stop.hubId) ||
+                  availableHubs.find(h => isCityMatch(h.city, originCity));
+
+      if (hub && isCityMatch(hub.city, originCity)) {
+        stops.push({ plannedStop: stop, hub });
+      }
+    });
+  }
+
+  // 3. If truck route passes through origin, find available hubs in the origin city
+  if (stops.length === 0) {
+    const originHubs = availableHubs.filter(h => isCityMatch(h.city, originCity));
+    originHubs.forEach(hub => {
+      const eta = truck.status === 'At Smart Hub' ? 20 : (truck.nextHubEtaMinutes || 45);
+      const synthStop: PlannedRouteStop = {
+        stopIndex: 0,
+        hubId: hub.id,
+        hubName: hub.name,
+        city: hub.city,
+        coordinates: hub.coordinates,
+        estimatedArrivalMinutesFromNow: eta,
+        scheduledTimeFormatted: formatSimulatedTime(eta),
+        status: 'upcoming'
+      };
+      stops.push({ plannedStop: synthStop, hub });
+    });
   }
 
   return stops;
@@ -168,22 +153,20 @@ export function scoreRouteLockedHub(
   const isTimeFeasible = safetyTimeBufferMinutes >= 0;
   const safetyTimeBufferFormatted = isTimeFeasible ? formatTimeBuffer(safetyTimeBufferMinutes) : `Late by ${Math.abs(safetyTimeBufferMinutes)} min`;
 
-  // --- 4 Scoring Dimensions ---
   // Factor 1: Customer Convenience (40% weight)
   let customerConvenienceScore = 80;
-  if (customerDistanceKm <= 3.5) customerConvenienceScore = 98;
-  else if (customerDistanceKm <= 7.0) customerConvenienceScore = 92;
-  else if (customerDistanceKm <= 14.0) customerConvenienceScore = 84;
-  else if (customerDistanceKm <= 22.0) customerConvenienceScore = 72;
-  else customerConvenienceScore = 60;
+  if (customerDistanceKm <= 4.0) customerConvenienceScore = 98;
+  else if (customerDistanceKm <= 10.0) customerConvenienceScore = 92;
+  else if (customerDistanceKm <= 18.0) customerConvenienceScore = 84;
+  else customerConvenienceScore = 70;
 
   // Factor 2: Time Buffer Safety (30% weight)
   let timeBufferScore = 70;
-  if (safetyTimeBufferMinutes >= 50) timeBufferScore = 98;
-  else if (safetyTimeBufferMinutes >= 30) timeBufferScore = 92;
-  else if (safetyTimeBufferMinutes >= 15) timeBufferScore = 84;
+  if (safetyTimeBufferMinutes >= 45) timeBufferScore = 98;
+  else if (safetyTimeBufferMinutes >= 25) timeBufferScore = 92;
+  else if (safetyTimeBufferMinutes >= 10) timeBufferScore = 84;
   else if (safetyTimeBufferMinutes >= 0) timeBufferScore = 74;
-  else timeBufferScore = 20; // Infeasible
+  else timeBufferScore = 20;
 
   // Factor 3: Hub Capability / Handling (20% weight)
   let hubCapabilityScore = 85;
@@ -206,15 +189,14 @@ export function scoreRouteLockedHub(
 
   const hubScore = isTimeFeasible ? Math.min(99, Math.max(60, Math.round(compositeRaw))) : 40;
 
-  // Explanations
   const explanations: string[] = [];
-  explanations.push(`Scheduled stop on truck ${truck.id}'s locked route (0 km truck detour)`);
+  explanations.push(`Scheduled pickup point in ${criteria.origin} along vehicle corridor`);
   if (isTimeFeasible) {
     explanations.push(`Your cargo can reach the hub ${safetyTimeBufferFormatted} before cutoff`);
   } else {
-    explanations.push(`Warning: Cargo may miss the ${loadingCutoffFormatted} loading cutoff`);
+    explanations.push(`Warning: Cargo may arrive after the ${loadingCutoffFormatted} cutoff`);
   }
-  explanations.push(`Truck continues directly along the ${criteria.destination} freight corridor`);
+  explanations.push(`Direct onward highway transit to ${criteria.destination}`);
 
   return {
     hub,
@@ -246,7 +228,8 @@ export function scoreRouteLockedHub(
 }
 
 /**
- * Recommends optimal Route-Locked Smart Pickup Hubs for a specific truck
+ * Recommends optimal Route-Locked Smart Pickup Hubs for a specific truck.
+ * Strictly guarantees that recommendedHub is at the ORIGIN city and deliveryHub is at DESTINATION.
  */
 export function recommendRouteLockedHubsForTruck(
   truck: Truck,
@@ -261,24 +244,28 @@ export function recommendRouteLockedHubsForTruck(
     if (criteria.cargoType && hub.supportedCargoTypes) {
       if (!hub.supportedCargoTypes.includes(criteria.cargoType)) return false;
     }
-    return true;
+    // Strict safeguard: Hub MUST match shipment origin!
+    return isCityMatch(hub.city, criteria.origin);
   });
+
+  // Find corresponding delivery hub at destination
+  const deliveryHub = availableHubs.find(h => isCityMatch(h.city, criteria.destination)) || null;
 
   if (compatiblePairs.length === 0) {
     return {
       truckId: truck.id,
       hasReachablePickupHub: false,
       recommendedHub: null,
+      deliveryHub,
       alternativeHubs: []
     };
   }
 
-  // Score all candidate stops
+  // Score candidate stops
   const scoredStops = compatiblePairs.map(({ plannedStop, hub }) =>
     scoreRouteLockedHub(plannedStop, hub, truck, criteria)
   );
 
-  // Separate time-feasible hubs from late ones
   const feasibleStops = scoredStops.filter(s => s.isTimeFeasible);
   const candidatesToRank = feasibleStops.length > 0 ? feasibleStops : scoredStops;
 
@@ -290,13 +277,14 @@ export function recommendRouteLockedHubsForTruck(
     isRecommended: idx === 0 && item.isTimeFeasible
   }));
 
-  const recommendedHub = ranked.find(r => r.isTimeFeasible) || null;
+  const recommendedHub = ranked.find(r => r.isTimeFeasible) || ranked[0] || null;
   const alternativeHubs = ranked.filter(r => r.hub.id !== (recommendedHub ? recommendedHub.hub.id : ''));
 
   return {
     truckId: truck.id,
     hasReachablePickupHub: !!recommendedHub,
     recommendedHub,
+    deliveryHub,
     alternativeHubs: alternativeHubs.slice(0, 3)
   };
 }

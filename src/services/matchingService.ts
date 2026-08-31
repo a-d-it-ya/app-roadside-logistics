@@ -35,15 +35,14 @@ export function calculateRouteScore(truck: Truck, criteria: ShipmentSearchCriter
     const intermediateStops = destIdx - originIdx - 1;
     if (intermediateStops === 0) return 96; // Direct segment
     if (intermediateStops === 1) return 92; // 1 waypoint
-    return 86; // 2+ waypoints
+    return 88; // 2+ waypoints
   }
 
-  // Trunk carrier cruising along the main highway
-  if (truckDest.includes(dest)) {
+  if (originIdx !== -1 && truckDest.includes(dest)) {
     return 90;
   }
 
-  return 82;
+  return 80;
 }
 
 /**

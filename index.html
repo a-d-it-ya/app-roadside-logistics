@@ -3204,6 +3204,71 @@
         lng: 78.1828,
         heading: 165,
         priceEstimate: '₹6,400'
+      },
+      {
+        id: 'RSL-8840',
+        reg: 'TN 04 BC 8840',
+        driverName: 'M. Senthil Nathan',
+        carrier: 'Coromandel-Deccan Express Line',
+        vehicleClass: '32ft Multi-Axle Heavy Truck (14T)',
+        vehicleType: 'Heavy Truck',
+        origin: 'Chennai',
+        dest: 'Hyderabad',
+        overallOrigin: 'Chennai, Tamil Nadu',
+        overallDestination: 'Hyderabad, Telangana',
+        location: 'NH-16 Northern Express (At Chennai Port Gateway Hub)',
+        currentCity: 'Chennai',
+        route: ['Chennai', 'Nellore', 'Ongole', 'Vijayawada', 'Suryapet', 'Hyderabad Central Hub'],
+        optionalServiceHubs: [
+          { hubId: 'HUB-MAA-01', hubName: 'Chennai Port Gateway & Madhavaram Terminal', city: 'Chennai', serviceRegion: 'Chennai', eta: 35, pickupWindowStatus: 'approaching' },
+          { hubId: 'HUB-MAA-02', hubName: 'Sriperumbudur Auto-Freight Corridor Hub', city: 'Chennai', serviceRegion: 'Chennai', eta: 70, pickupWindowStatus: 'open' }
+        ],
+        totalCapKg: 14000,
+        availCapKg: 3800,
+        status: 'Corridor Cruising',
+        speed: 62,
+        eta: 35,
+        estimatedArrival: 'Tomorrow, 07:30 AM',
+        rating: 4.92,
+        supportedCargo: ['General Cargo', 'Electronics', 'Industrial Materials', 'Fragile Goods', 'Textiles & Garments'],
+        progress: 0.10,
+        polyline: FREIGHT_CORRIDORS[1].polyline,
+        lat: 13.1480,
+        lng: 80.2310,
+        heading: 340,
+        priceEstimate: '₹4,750'
+      },
+      {
+        id: 'RSL-4920',
+        reg: 'TN 22 AX 4920',
+        driverName: 'R. Karthik',
+        carrier: 'Southern Star Logistics',
+        vehicleClass: '28ft Container Truck (10T)',
+        vehicleType: 'Container Truck',
+        origin: 'Chennai',
+        dest: 'Bengaluru',
+        overallOrigin: 'Chennai (Sriperumbudur Hub)',
+        overallDestination: 'Bengaluru (Hosakote Terminal)',
+        location: 'Sriperumbudur Hub Concourse (Loading at Bay 4)',
+        currentCity: 'Chennai',
+        route: ['Chennai', 'Sriperumbudur Hub', 'Vellore', 'Hosur', 'Bengaluru'],
+        optionalServiceHubs: [
+          { hubId: 'HUB-MAA-02', hubName: 'Sriperumbudur Auto-Freight Corridor Hub', city: 'Chennai', serviceRegion: 'Chennai', eta: 25, pickupWindowStatus: 'open' }
+        ],
+        totalCapKg: 10000,
+        availCapKg: 2800,
+        status: 'At Smart Hub',
+        speed: 0,
+        eta: 25,
+        estimatedArrival: 'Tonight, 11:30 PM',
+        rating: 4.88,
+        supportedCargo: ['General Cargo', 'Electronics', 'Industrial Materials'],
+        progress: 0.15,
+        polyline: FREIGHT_CORRIDORS[2].polyline,
+        lat: 12.9690,
+        lng: 79.9410,
+        heading: 260,
+        priceEstimate: '₹3,900'
       }
     ];
 
@@ -3805,32 +3870,110 @@
       return dot > 0;
     }
 
+    function isCityMatch(cityName, targetName) {
+      const c = (cityName || '').toLowerCase().trim().replace(/[,.-]/g, ' ');
+      const t = (targetName || '').toLowerCase().trim().replace(/[,.-]/g, ' ');
+      if (!c || !t) return false;
+      return c.includes(t) || t.includes(c);
+    }
+
+    function validateRouteSequenceAndDirection(truck, criteria) {
+      const origin = criteria.origin;
+      const dest = criteria.destination;
+
+      if (!truck || !origin || !dest) return { isValid: false };
+
+      const tOrigin = truck.origin || truck.overallOrigin || '';
+      const tDest = truck.dest || truck.destination || truck.overallDestination || '';
+
+      // Direct Opposite Terminus Check -> Reject immediately
+      if (isCityMatch(tOrigin, dest) && isCityMatch(tDest, origin)) {
+        return { isValid: false, reason: 'Reversed Route' };
+      }
+
+      const routeStops = truck.route || truck.routeStops || [];
+      let originIdx = -1;
+      let destIdx = -1;
+
+      for (let i = 0; i < routeStops.length; i++) {
+        const stop = routeStops[i];
+        if (originIdx === -1 && isCityMatch(stop, origin)) {
+          originIdx = i;
+        }
+        if (isCityMatch(stop, dest)) {
+          destIdx = i;
+        }
+      }
+
+      if (originIdx === -1 && isCityMatch(tOrigin, origin)) originIdx = 0;
+      if (destIdx === -1 && isCityMatch(tDest, dest)) destIdx = routeStops.length > 0 ? routeStops.length : 99;
+
+      if (originIdx === -1) {
+        const hasOriginHub = (truck.optionalServiceHubs || []).some(h => isCityMatch(h.city, origin) || isCityMatch(h.serviceRegion, origin));
+        if (!hasOriginHub) return { isValid: false, reason: 'No origin support' };
+        originIdx = 0;
+      }
+
+      if (destIdx === -1) return { isValid: false, reason: 'No destination on route' };
+
+      // CRITICAL: Origin MUST come before Destination
+      if (originIdx >= destIdx) {
+        return { isValid: false, reason: 'Origin after Destination' };
+      }
+
+      // Check if truck already passed origin
+      const currentCity = truck.currentCity || truck.location || '';
+      const currentLocLower = (truck.location || currentCity).toLowerCase();
+      if (currentLocLower.includes('passed') || currentLocLower.includes('departed')) {
+        if (isCityMatch(currentLocLower, origin)) return { isValid: false, reason: 'Already passed origin' };
+      }
+
+      if (truck.optionalServiceHubs && truck.optionalServiceHubs.length > 0) {
+        const originHubs = truck.optionalServiceHubs.filter(h => isCityMatch(h.city, origin) || isCityMatch(h.serviceRegion, origin));
+        if (originHubs.length > 0) {
+          const allPassed = originHubs.every(h => h.pickupWindowStatus === 'passed');
+          if (allPassed) return { isValid: false, reason: 'Pickup window passed' };
+        }
+      }
+
+      return { isValid: true, originIdx, destIdx };
+    }
+
     function getUpcomingOptionalHubs(truck, criteria, availableHubs) {
       const stops = [];
-      const originCity = (criteria.origin || '').toLowerCase().trim();
-      const destCityName = criteria.destination || truck.dest || truck.overallDestination || 'Chennai';
-      const destCoord = getCityCoordinates(destCityName);
+      const originCity = criteria.origin;
 
       if (truck.optionalServiceHubs && truck.optionalServiceHubs.length > 0) {
         truck.optionalServiceHubs.forEach(opt => {
-          if (opt.pickupWindowStatus === 'passed' || opt.eta === 0) return;
+          if (opt.pickupWindowStatus === 'passed') return;
 
-          const isOrigin = opt.city.toLowerCase().includes(originCity) || opt.serviceRegion.toLowerCase().includes(originCity);
-          if (!isOrigin) return;
+          // ABSOLUTE RULE: Hub MUST match shipment ORIGIN
+          if (!isCityMatch(opt.city, originCity) && !isCityMatch(opt.serviceRegion, originCity)) return;
 
           const hub = availableHubs.find(h => h.id === opt.hubId) ||
-                      availableHubs.find(h => h.city.toLowerCase().includes(originCity));
+                      availableHubs.find(h => isCityMatch(h.city, originCity));
 
-          if (hub) {
-            // Strict 2-Rule Directional Guard:
-            // 1. Hub must be forward in the vehicle's vector of travel (dot product > 0).
-            // 2. Hub must not be behind the truck in the opposite direction.
-            if (isHubAheadOfTruck(truck, hub, destCoord)) {
-              stops.push({ optionalHub: opt, hub });
-            }
+          if (hub && isCityMatch(hub.city, originCity)) {
+            stops.push({ optionalHub: opt, hub });
           }
         });
       }
+
+      if (stops.length === 0) {
+        const originHubs = availableHubs.filter(h => isCityMatch(h.city, originCity));
+        originHubs.forEach(hub => {
+          const fakeOpt = {
+            hubId: hub.id,
+            hubName: hub.name,
+            city: hub.city,
+            serviceRegion: hub.city,
+            eta: truck.status === 'At Smart Hub' ? 20 : (truck.eta || 45),
+            pickupWindowStatus: 'open'
+          };
+          stops.push({ optionalHub: fakeOpt, hub });
+        });
+      }
+
       return stops;
     }
 
@@ -3888,7 +4031,7 @@
       const hubScore = isTimeFeasible ? Math.min(99, Math.max(60, Math.round(compositeRaw))) : 40;
 
       const explanations = [
-        `Ahead in truck's forward travel direction toward ${criteria.destination}`,
+        `Scheduled pickup in ${criteria.origin} along vehicle corridor`,
         isTimeFeasible ? `Your cargo can reach the hub ${safetyTimeBufferFormatted} before cutoff` : `Cargo will arrive after the ${loadingCutoffFormatted} cutoff`,
         `Truck stops directly on its locked corridor with zero backtracking`,
         `Direct onward connection along highway to ${criteria.destination}`
@@ -3922,37 +4065,27 @@
     }
 
     function recommendHubsForTruck(truck, criteria, availableHubs) {
-      const destCityName = criteria.destination || truck.dest || truck.overallDestination || 'Chennai';
-      const destCoord = getCityCoordinates(destCityName);
-
       const upcomingPairs = getUpcomingOptionalHubs(truck, criteria, availableHubs);
+      
+      // Strict filter: Hub must match ORIGIN and support cargo
       const compatiblePairs = upcomingPairs.filter(({ hub }) => {
         if (hub.status && hub.status !== 'Operational') return false;
         if (criteria.cargoType && hub.supportedCargo) {
           if (!hub.supportedCargo.includes(criteria.cargoType)) return false;
         }
-        return isHubAheadOfTruck(truck, hub, destCoord);
+        return isCityMatch(hub.city, criteria.origin);
       });
 
+      const deliveryHub = availableHubs.find(h => isCityMatch(h.city, criteria.destination)) || null;
+
       if (compatiblePairs.length === 0) {
-        const originCity = (criteria.origin || '').toLowerCase();
-        const cityHubs = availableHubs.filter(h => h.city.toLowerCase().includes(originCity));
-        const forwardCityHubs = cityHubs.filter(h => isHubAheadOfTruck(truck, h, destCoord));
-        const fallbackHub = forwardCityHubs[0] ||
-                            availableHubs.find(h => h.id === 'HUB-HYD-03') ||
-                            availableHubs.find(h => h.id === 'HUB-HYD-02') ||
-                            availableHubs[0];
-        if (fallbackHub) {
-          const fakeOpt = { hubId: fallbackHub.id, hubName: fallbackHub.name, city: fallbackHub.city, serviceRegion: fallbackHub.city, eta: truck.eta || 48, pickupWindowStatus: 'open' };
-          const scoredFallback = scoreRouteLockedHub(fakeOpt, fallbackHub, truck, criteria);
-          return {
-            truckId: truck.id,
-            hasReachablePickupHub: true,
-            recommendedHub: scoredFallback,
-            alternativeHubs: []
-          };
-        }
-        return { truckId: truck.id, hasReachablePickupHub: false, recommendedHub: null, alternativeHubs: [] };
+        return {
+          truckId: truck.id,
+          hasReachablePickupHub: false,
+          recommendedHub: null,
+          deliveryHub,
+          alternativeHubs: []
+        };
       }
 
       const scored = compatiblePairs.map(({ optionalHub, hub }) => scoreRouteLockedHub(optionalHub, hub, truck, criteria));
@@ -3973,6 +4106,7 @@
         truckId: truck.id,
         hasReachablePickupHub: !!recommendedHub,
         recommendedHub,
+        deliveryHub,
         alternativeHubs: alternativeHubs.slice(0, 3)
       };
     }
@@ -3983,62 +4117,35 @@
     function executeTruckFilter(trucks, criteria) {
       const matchingTrucks = [];
       const nonMatchingTrucks = [];
-      const origin = (criteria.origin || '').toLowerCase().trim();
-      const dest = (criteria.destination || '').toLowerCase().trim();
       const reqWeight = criteria.weightKg || 700;
 
       trucks.forEach(truck => {
-        // Gate 1: Destination Direction Compatibility
-        const tDest = (truck.dest || '').toLowerCase();
-        const tOverallDest = (truck.overallDestination || '').toLowerCase();
-        const tStops = (truck.route || []).map(s => s.toLowerCase());
-        const hasDestFit = tDest.includes(dest) || tOverallDest.includes(dest) || tStops.some(s => s.includes(dest));
-
-        // Gate 2: Optional Service Corridor Support
-        const optHubs = truck.optionalServiceHubs || [];
-        const hasCorridorFit = optHubs.some(h => h.city.toLowerCase().includes(origin) || h.serviceRegion.toLowerCase().includes(origin)) ||
-                               (truck.origin || '').toLowerCase().includes(origin) ||
-                               tStops.some(s => s.includes(origin));
-
-        // Gate 3: Pickup Eligibility Window (Strict Upstream Check)
-        const relevantHubs = optHubs.filter(h => h.city.toLowerCase().includes(origin) || h.serviceRegion.toLowerCase().includes(origin));
-        let isWindowOpen = true;
-        if (relevantHubs.length > 0) {
-          isWindowOpen = relevantHubs.some(h => h.pickupWindowStatus === 'open' || h.pickupWindowStatus === 'approaching');
+        // Gate 1 & 2: Two-Sided Route & Direction Validation (Origin MUST precede Destination)
+        const routeValidation = validateRouteSequenceAndDirection(truck, criteria);
+        if (!routeValidation.isValid) {
+          nonMatchingTrucks.push(truck);
+          return;
         }
 
-        // Check if truck's current position is past origin along corridor
-        const originIdx = tStops.findIndex(s => s.includes(origin));
-        const currentCity = (truck.currentCity || truck.location || '').toLowerCase();
-        const currentCityIdx = tStops.findIndex(s => s.includes(currentCity));
-        if (originIdx !== -1 && currentCityIdx > originIdx) {
-          isWindowOpen = false; // Already passed origin!
-        }
-        if (currentCity.includes('passed') || (truck.location || '').toLowerCase().includes('already passed')) {
-          if (currentCity.includes(origin) || (truck.location || '').toLowerCase().includes(origin)) {
-            isWindowOpen = false;
-          }
-        }
-
-        // Gate 4: Available Capacity & Cargo Fit
+        // Gate 3: Available Capacity Check
         const hasCapacity = (truck.availCapKg || 0) >= reqWeight;
+
+        // Gate 4: Cargo Compatibility Check
         const supported = truck.supportedCargo || [];
         const hasCargoFit = !criteria.cargoType || supported.includes(criteria.cargoType);
 
-        // Gate 5: Time Feasibility (Truck ETA - 15m Cutoff >= 30m Cargo Handover)
+        // Gate 5: Time Feasibility Check
         let isTimeFeasible = true;
-        const eta = (relevantHubs.length > 0 && relevantHubs[0].eta) ? relevantHubs[0].eta : (truck.eta || 45);
+        const eta = truck.eta || 45;
         const cutoff = Math.max(0, eta - 15);
-        const cargoReady = 30; // 15m customer travel + 15m hub intake
+        const cargoReady = 30;
         isTimeFeasible = cargoReady <= cutoff;
 
-        if (hasDestFit && hasCorridorFit && isWindowOpen && hasCapacity && hasCargoFit && isTimeFeasible) {
+        if (hasCapacity && hasCargoFit && isTimeFeasible) {
           matchingTrucks.push(truck);
         } else {
           nonMatchingTrucks.push(truck);
         }
-      });
-
       return {
         matchingTrucks,
         nonMatchingTrucks,
@@ -4942,30 +5049,30 @@
             </div>
           </div>
 
-          <!-- SMART PICKUP POINT SECTION (FEATURE 4: CONDITIONAL STOP ACTIVATION) -->
+          <!-- SMART PICKUP POINT SECTION (ORIGIN-LOCKED PICKUP) -->
           <div class="p-3 rounded-xl bg-gradient-to-r from-cyan-950/40 to-slate-950/80 border border-cyan-500/40">
             <div class="flex items-center justify-between mb-2">
               <div class="flex items-center gap-1.5">
-                <span class="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span>
-                <span class="text-[10px] font-mono uppercase font-bold text-cyan-300">📍 Conditional Hub Stop Activated</span>
+                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span class="text-[10px] font-mono uppercase font-bold text-emerald-300">📍 Verified Pickup Hub (${(recSet.criteria && recSet.criteria.origin) || 'Origin'})</span>
               </div>
               <div class="flex items-center gap-1">
                 <span class="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-emerald-950 text-emerald-300 border border-emerald-500/30">
                   0 km Detour
                 </span>
                 <span class="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-cyan-950 text-cyan-300 border border-cyan-500/30">
-                  ${recHub ? `${recHub.hubScore}% Optimal` : 'Available Stop'}
+                  ${recHub ? `${recHub.hubScore}% Optimal` : 'Origin Pickup'}
                 </span>
               </div>
             </div>
 
             <div class="mb-2">
               <h4 class="text-xs font-bold text-white flex items-center justify-between">
-                <span>${recHub ? recHub.hub.name : 'Corridor Logistics Terminal'}</span>
-                <span class="text-[9px] font-mono px-1.5 py-0.5 rounded bg-cyan-950 text-cyan-300 border border-cyan-500/30">Optional Stop Activated</span>
+                <span>${recHub ? recHub.hub.name : 'Origin Freight Terminal'}</span>
+                <span class="text-[9px] font-mono px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-500/30">Origin Pickup</span>
               </h4>
               <p class="text-[10px] text-slate-400 font-mono mt-0.5 truncate">
-                ${recHub ? recHub.hub.address : 'On-route freight terminal'}
+                ${recHub ? recHub.hub.address : 'On-route freight terminal in ' + ((recSet.criteria && recSet.criteria.origin) || 'Origin')}
               </p>
             </div>
 

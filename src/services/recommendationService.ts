@@ -1,12 +1,15 @@
-import { Truck, ShipmentSearchCriteria, ScoredTruckMatch, RecommendationResultSet, RecommendationTab } from '../types/logistics';
+import { Truck, ShipmentSearchCriteria, ScoredTruckMatch, RecommendationResultSet, RecommendationTab, LogisticsHub } from '../types/logistics';
 import { scoreTruck } from './matchingService';
+import { recommendRouteLockedHubsForTruck } from './hubMatchingService';
 
 /**
- * Evaluates all eligible trucks and ranks them into Best Value, Fastest, and Cheapest categories
+ * Evaluates all eligible trucks and ranks them into Best Value, Fastest, and Cheapest categories.
+ * Attaches verified origin-side pickup hubs and destination delivery hubs.
  */
 export function generateRecommendations(
   eligibleTrucks: Truck[],
   criteria: ShipmentSearchCriteria,
+  availableHubs: LogisticsHub[] = [],
   activeTab: RecommendationTab = 'best_value'
 ): RecommendationResultSet {
   if (!eligibleTrucks || eligibleTrucks.length === 0) {
@@ -20,8 +23,15 @@ export function generateRecommendations(
     };
   }
 
-  // 1. Score all eligible trucks
-  const scoredMatches: ScoredTruckMatch[] = eligibleTrucks.map(truck => scoreTruck(truck, criteria));
+  // 1. Score all eligible trucks and attach origin-locked pickup hubs
+  const scoredMatches: ScoredTruckMatch[] = eligibleTrucks.map(truck => {
+    const baseMatch = scoreTruck(truck, criteria);
+    const hubRec = recommendRouteLockedHubsForTruck(truck, criteria, availableHubs);
+    return {
+      ...baseMatch,
+      hubRecommendation: hubRec
+    };
+  });
 
   // 2. Rank for 🥇 BEST VALUE (Highest Composite Score & Balanced Savings)
   const bestValue = [...scoredMatches].sort((a, b) => {
