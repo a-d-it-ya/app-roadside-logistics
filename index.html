@@ -3617,59 +3617,6 @@
     }
 
     // ----------------------------------------------------
-    // MODULAR FILTER FUNCTIONS
-    // ----------------------------------------------------
-    function filterByCapacity(truck, weightKg) {
-      return (truck.availCapKg || 0) >= weightKg;
-    }
-
-    function filterByCargoCompatibility(truck, cargoType) {
-      const supported = truck.supportedCargo || truck.compatibleCargoTypes || [];
-      return supported.includes(cargoType);
-    }
-
-    function filterByDestinationCompatibility(truck, destination) {
-      const target = (destination || '').toLowerCase().trim();
-      if ((truck.dest || '').toLowerCase().includes(target)) return true;
-      const stops = truck.route || [];
-      return stops.some(s => s.toLowerCase().includes(target));
-    }
-
-    function filterByPickupCompatibility(truck, origin) {
-      const target = (origin || '').toLowerCase().trim();
-      if ((truck.currentCity || '').toLowerCase().includes(target)) return true;
-      if ((truck.origin || '').toLowerCase().includes(target)) return true;
-      if ((truck.location || '').toLowerCase().includes(target)) return true;
-      const stops = truck.route || [];
-      return stops.some(s => s.toLowerCase().includes(target));
-    }
-
-    function executeTruckFilter(trucks, criteria) {
-      const matchingTrucks = [];
-      const nonMatchingTrucks = [];
-
-      trucks.forEach(truck => {
-        const c1 = filterByCapacity(truck, criteria.weightKg);
-        const c2 = filterByCargoCompatibility(truck, criteria.cargoType);
-        const c3 = filterByDestinationCompatibility(truck, criteria.destination);
-        const c4 = filterByPickupCompatibility(truck, criteria.origin);
-
-        if (c1 && c2 && c3 && c4) {
-          matchingTrucks.push(truck);
-        } else {
-          nonMatchingTrucks.push(truck);
-        }
-      });
-
-      return {
-        matchingTrucks,
-        nonMatchingTrucks,
-        totalScanned: trucks.length,
-        criteria
-      };
-    }
-
-    // ----------------------------------------------------
     // MAP INITIALIZATION & TILE LAYERS
     // ----------------------------------------------------
     let map;
@@ -4146,6 +4093,8 @@
         } else {
           nonMatchingTrucks.push(truck);
         }
+      });
+
       return {
         matchingTrucks,
         nonMatchingTrucks,
