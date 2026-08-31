@@ -37,6 +37,9 @@ export const TopNav: React.FC<TopNavProps> = ({
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
 
+  const isDriver = isAuthenticated && (user?.role === 'DRIVER' || user?.accountType === 'Driver');
+  const isBusiness = isAuthenticated && (user?.role === 'BUSINESS' || user?.accountType === 'Business' || user?.accountType === 'Individual');
+
   return (
     <header className="absolute top-0 left-0 right-0 z-[1000] px-3 sm:px-5 py-2.5 pointer-events-none font-sans">
       <div className="w-full mx-auto flex items-center justify-between pointer-events-auto bg-slate-950/90 backdrop-blur-md border border-slate-800/80 rounded-2xl px-4 sm:px-6 py-2 shadow-2xl shadow-black/60">
@@ -51,85 +54,108 @@ export const TopNav: React.FC<TopNavProps> = ({
               <span className="font-extrabold tracking-wider text-sm lg:text-base text-white uppercase font-mono">
                 ROADSIDE <span className="text-emerald-400">LOGISTICS</span>
               </span>
-              <span className="hidden sm:inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-950/80 text-emerald-300 border border-emerald-500/30">
+              <span className="hidden sm:inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-950/80 text-emerald-300 border border-emerald-500/30 font-mono">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                LIVE NETWORK
+                {isDriver ? 'DRIVER COCKPIT' : 'LIVE NETWORK'}
               </span>
             </div>
             <p className="text-[10px] text-slate-400 hidden sm:block tracking-tight">
-              Real-time Freight Capacity Corridors • India
+              {isDriver
+                ? `Commercial In-Cab Active • ${user?.assignedVehicleReg || 'AP 31 TT 5510'}`
+                : 'Real-time Freight Capacity Corridors • India'}
             </p>
           </div>
         </div>
 
-        {/* Center Nav Links */}
+        {/* Center Nav Links - STRICT ROLE ISOLATION */}
         <nav className="hidden md:flex items-center gap-1 bg-slate-900/90 p-1 rounded-xl border border-slate-800/60 font-mono">
-          <button
-            onClick={() => onTabChange('explore')}
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
-              activeTab === 'explore'
-                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shadow-sm'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
-            }`}
-          >
-            <Layers className="w-3.5 h-3.5" />
-            <span>Explore Network</span>
-            <span className="px-1.5 py-0.2 text-[10px] rounded-full bg-slate-800 text-slate-300 font-mono">
-              {activeTrucksCount}
-            </span>
-          </button>
+          {/* DRIVER EXCLUSIVE NAVIGATION */}
+          {isDriver ? (
+            <>
+              <button
+                onClick={() => {
+                  if (onOpenDriverApp) onOpenDriverApp();
+                }}
+                className="flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold text-slate-950 bg-gradient-to-r from-emerald-400 to-teal-400 border border-emerald-400 shadow-lg shadow-emerald-500/20 transition-all"
+              >
+                <Radio className="w-3.5 h-3.5 text-slate-950 animate-pulse" />
+                <span>My In-Cab Cockpit</span>
+              </button>
 
-          <button
-            onClick={() => onTabChange('shipments')}
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
-              activeTab === 'shipments'
-                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shadow-sm'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
-            }`}
-          >
-            <PackageCheck className="w-3.5 h-3.5" />
-            <span>My Shipments</span>
-          </button>
+              <button
+                onClick={() => onTabChange('explore')}
+                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                  activeTab === 'explore'
+                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                }`}
+              >
+                <Layers className="w-3.5 h-3.5" />
+                <span>Highway Network Map</span>
+              </button>
+            </>
+          ) : (
+            /* BUSINESS / SHIPPER / GUEST EXCLUSIVE NAVIGATION */
+            <>
+              <button
+                onClick={() => onTabChange('explore')}
+                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                  activeTab === 'explore'
+                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                }`}
+              >
+                <Layers className="w-3.5 h-3.5" />
+                <span>Explore Network</span>
+                <span className="px-1.5 py-0.2 text-[10px] rounded-full bg-slate-800 text-slate-300 font-mono">
+                  {activeTrucksCount}
+                </span>
+              </button>
 
-          <button
-            onClick={() => {
-              if (onOpenDriverApp) onOpenDriverApp();
-            }}
-            className="flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium text-emerald-400 bg-emerald-950/40 hover:bg-emerald-900/50 border border-emerald-500/30 transition-all"
-            title="Open Driver Mobile In-Cab Interface"
-          >
-            <Radio className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
-            <span>Driver App</span>
-          </button>
+              <button
+                onClick={() => onTabChange('shipments')}
+                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                  activeTab === 'shipments'
+                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                }`}
+              >
+                <PackageCheck className="w-3.5 h-3.5" />
+                <span>My Shipments</span>
+              </button>
 
-          <button
-            onClick={() => {
-              onTabChange('howItWorks');
-              if (onOpenHowItWorks) onOpenHowItWorks();
-            }}
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
-              activeTab === 'howItWorks'
-                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shadow-sm'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
-            }`}
-          >
-            <HelpCircle className="w-3.5 h-3.5" />
-            <span>How It Works</span>
-          </button>
+              <button
+                onClick={() => {
+                  onTabChange('howItWorks');
+                  if (onOpenHowItWorks) onOpenHowItWorks();
+                }}
+                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                  activeTab === 'howItWorks'
+                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                }`}
+              >
+                <HelpCircle className="w-3.5 h-3.5" />
+                <span>How It Works</span>
+              </button>
+            </>
+          )}
         </nav>
 
         {/* Right Side Actions */}
         <div className="flex items-center gap-3">
-          {/* Driver App Button for Mobile */}
-          <button
-            onClick={() => {
-              if (onOpenDriverApp) onOpenDriverApp();
-            }}
-            className="md:hidden flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 text-xs font-mono font-semibold"
-          >
-            <Truck className="w-3.5 h-3.5" />
-            <span>Driver</span>
-          </button>
+          {/* Driver Cockpit Quick Launch for Mobile (Only for Drivers) */}
+          {isDriver && (
+            <button
+              onClick={() => {
+                if (onOpenDriverApp) onOpenDriverApp();
+              }}
+              className="md:hidden flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-emerald-500 text-slate-950 text-xs font-mono font-bold"
+            >
+              <Truck className="w-3.5 h-3.5" />
+              <span>Cockpit</span>
+            </button>
+          )}
           {/* Notifications */}
           <div className="relative">
             <button

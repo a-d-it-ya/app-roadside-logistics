@@ -83,12 +83,20 @@ const AppContent: React.FC = () => {
     return authService.getUserShipments(user?.id || 'USR-1001');
   });
 
-  // Reload user shipments whenever active user session changes
+  const isDriver = isAuthenticated && (user?.role === 'DRIVER' || user?.accountType === 'Driver');
+
+  // Reload user shipments and switch interfaces whenever active user session changes
   useEffect(() => {
     if (user) {
       setMyShipments(authService.getUserShipments(user.id));
+      if (user.role === 'DRIVER' || user.accountType === 'Driver') {
+        setIsDriverDashboardOpen(true);
+      } else {
+        setIsDriverDashboardOpen(false);
+      }
     } else {
       setMyShipments([]);
+      setIsDriverDashboardOpen(false);
     }
   }, [user]);
 
@@ -349,10 +357,8 @@ const AppContent: React.FC = () => {
         onOpenHowItWorks={() => {}}
         onOpenProfile={() => setIsProfileOpen(true)}
         onOpenDriverApp={() => setIsDriverDashboardOpen(true)}
-      />
-
-      {/* Floating Shipment Search Panel (Features 1 & 6) */}
-      {!showResultsPanel && (
+      />      {/* Floating Shipment Search Panel (Business & Public Only - Hidden for Drivers) */}
+      {!isDriver && !showResultsPanel && (
         <ShipmentSearchPanel
           onSearch={handleSearch}
           initialMode={bookingMode}
@@ -363,8 +369,32 @@ const AppContent: React.FC = () => {
         />
       )}
 
-      {/* SHARED RESULTS PANEL (Feature 2, 3, 4) */}
-      {showResultsPanel && bookingMode === 'SHARE_CAPACITY' && sharedResult && (
+      {/* Floating In-Cab Driver Mini Widget (Driver Only) */}
+      {isDriver && (
+        <div className="absolute top-20 left-4 z-[900] p-4 rounded-3xl bg-slate-950/90 border border-emerald-500/50 shadow-2xl backdrop-blur-md max-w-xs text-white font-mono space-y-3 animate-in slide-in-from-left-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+              <span className="text-xs font-bold text-emerald-300 uppercase">DRIVER IN-CAB HUD</span>
+            </div>
+            <span className="text-[10px] text-slate-400">{user?.assignedVehicleReg || 'AP 31 TT 5510'}</span>
+          </div>
+
+          <p className="text-[11px] text-slate-300 font-sans leading-relaxed">
+            Welcome, <span className="font-bold text-white">{user?.name}</span>. Your vehicle is assigned to the Vizag → Chennai freight corridor.
+          </p>
+
+          <button
+            onClick={() => setIsDriverDashboardOpen(true)}
+            className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 transition uppercase tracking-wider"
+          >
+            <span>Open In-Cab Cockpit</span>
+          </button>
+        </div>
+      )}
+
+      {/* SHARED RESULTS PANEL (Business & Public Only) */}
+      {!isDriver && showResultsPanel && bookingMode === 'SHARE_CAPACITY' && sharedResult && (
         <MatchingResultsPanel
           recSet={sharedResult}
           onClose={() => setShowResultsPanel(false)}
@@ -384,8 +414,8 @@ const AppContent: React.FC = () => {
         />
       )}
 
-      {/* DEDICATED RESULTS PANEL (Feature 6) */}
-      {showResultsPanel && bookingMode === 'FULL_VEHICLE' && dedicatedResult && (
+      {/* DEDICATED RESULTS PANEL (Business & Public Only) */}
+      {!isDriver && showResultsPanel && bookingMode === 'FULL_VEHICLE' && dedicatedResult && (
         <DedicatedResultsPanel
           searchResult={dedicatedResult}
           onSelectDedicatedTruck={handleOpenDedicatedBookingReview}

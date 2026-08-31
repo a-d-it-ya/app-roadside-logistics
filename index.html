@@ -449,6 +449,38 @@
   </header>
 
   <!-- ==================================================== -->
+  <!-- FLOATING DRIVER IN-CAB HUD WIDGET (Driver Only)      -->
+  <!-- ==================================================== -->
+  <aside id="driverInCabHUD" class="hidden absolute top-[4.75rem] left-3 sm:left-5 z-[900] w-[calc(100%-1.5rem)] sm:w-[380px] pointer-events-auto font-mono">
+    <div class="bg-slate-950/95 backdrop-blur-xl border border-emerald-500/50 rounded-3xl p-5 shadow-2xl shadow-black/90 text-white space-y-3 animate-fadeIn">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div class="flex items-center gap-2">
+          <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+          <h2 class="text-xs uppercase tracking-wider font-bold text-emerald-300">
+            DRIVER IN-CAB HUD
+          </h2>
+        </div>
+        <span id="driverHudVehicleReg" class="text-[10px] px-2 py-0.5 rounded-md bg-slate-900 text-slate-300 border border-slate-800">
+          AP 31 TT 5510
+        </span>
+      </div>
+
+      <div class="text-xs font-sans text-slate-300 leading-relaxed">
+        <span id="driverHudGreeting" class="font-bold text-white block mb-1">Driver Session Active</span>
+        <span>Assigned Freight Corridor: <strong class="text-emerald-400">Vizag → Chennai via Hyderabad</strong>.</span>
+      </div>
+
+      <button
+        onclick="openDriverModal()"
+        class="w-full py-3 px-4 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 transition uppercase tracking-wider"
+      >
+        <i data-lucide="radio" class="w-4 h-4 text-slate-950 animate-pulse"></i>
+        <span>Launch Driver In-Cab Cockpit</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- ==================================================== -->
   <!-- FLOATING SHIPMENT SEARCH PANEL                       -->
   <!-- ==================================================== -->
   <aside id="shipmentSearchPanel" class="absolute top-[4.75rem] left-3 sm:left-5 z-[900] w-[calc(100%-1.5rem)] sm:w-[410px] pointer-events-auto">
@@ -6439,6 +6471,13 @@
       const dropdownEmail = document.getElementById('dropdownUserEmail');
       const dropdownType = document.getElementById('dropdownAccountType');
 
+      const navDriverApp = document.getElementById('navDriverApp');
+      const navShipments = document.getElementById('navShipments');
+      const searchPanel = document.getElementById('shipmentSearchPanel');
+      const driverHud = document.getElementById('driverInCabHUD');
+
+      const isDriver = CURRENT_USER && (CURRENT_USER.role === 'DRIVER' || CURRENT_USER.accountType === 'Driver');
+
       if (CURRENT_USER) {
         if (signInBtn) signInBtn.classList.add('hidden');
         if (profileChip) profileChip.classList.remove('hidden');
@@ -6446,12 +6485,38 @@
         if (userName) userName.innerText = CURRENT_USER.name;
         if (dropdownName) dropdownName.innerText = CURRENT_USER.name;
         if (dropdownEmail) dropdownEmail.innerText = CURRENT_USER.email;
-        if (dropdownType) dropdownType.innerText = (CURRENT_USER.accountType || 'INDIVIDUAL').toUpperCase();
+        if (dropdownType) dropdownType.innerText = isDriver ? 'COMMERCIAL DRIVER' : (CURRENT_USER.accountType || 'BUSINESS').toUpperCase();
+
+        if (isDriver) {
+          // DRIVER VIEW: Show Cockpit triggers, Hide Shipper Search & Shipments
+          if (navDriverApp) navDriverApp.classList.remove('hidden');
+          if (navShipments) navShipments.classList.add('hidden');
+          if (searchPanel) searchPanel.classList.add('hidden');
+          if (driverHud) {
+            driverHud.classList.remove('hidden');
+            const greeting = document.getElementById('driverHudGreeting');
+            if (greeting) greeting.innerText = `Welcome, ${CURRENT_USER.name}`;
+          }
+        } else {
+          // BUSINESS / SHIPPER VIEW: Show Shipper Search & Shipments, Hide Driver Cockpit
+          if (navDriverApp) navDriverApp.classList.add('hidden');
+          if (navShipments) navShipments.classList.remove('hidden');
+          if (searchPanel) searchPanel.classList.remove('hidden');
+          if (driverHud) driverHud.classList.add('hidden');
+          closeDriverModal();
+        }
       } else {
+        // GUEST VIEW: Public Network Explorer
         if (signInBtn) signInBtn.classList.remove('hidden');
         if (profileChip) profileChip.classList.add('hidden');
         const dropdown = document.getElementById('navProfileDropdown');
         if (dropdown) dropdown.classList.add('hidden');
+
+        if (navDriverApp) navDriverApp.classList.add('hidden');
+        if (navShipments) navShipments.classList.remove('hidden');
+        if (searchPanel) searchPanel.classList.remove('hidden');
+        if (driverHud) driverHud.classList.add('hidden');
+        closeDriverModal();
       }
       lucide.createIcons();
     }
