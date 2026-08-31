@@ -861,5 +861,61 @@ export const INITIAL_TRUCKS: Truck[] = [
     routePolyline: FREIGHT_CORRIDORS[4].coordinates,
     currentRouteProgress: 0.15,
     simulatedPriceEstimateRs: 3900
+  },
+
+  // ----------------------------------------------------
+  // TRUCK 15: RSL-7720 (Bengaluru -> Anantapur -> Kurnool -> Hyderabad)
+  // ----------------------------------------------------
+  {
+    id: 'RSL-7720',
+    registrationNumber: 'KA 01 MJ 7720',
+    driverName: 'Manjunath Gowda',
+    carrierName: 'Southern Grand Trunk Express',
+    vehicleClass: '32ft Multi-Axle Heavy Truck (14T)',
+    vehicleType: 'Heavy Truck',
+    origin: 'Bengaluru',
+    destination: 'Hyderabad',
+    overallOrigin: 'Bengaluru (Hosakote Concourse)',
+    overallDestination: 'Hyderabad (Sanathnagar Terminal)',
+    currentLocation: { city: 'Bengaluru', landmark: 'Hosakote Industrial Concourse', latitude: 12.9716, longitude: 77.5946 },
+    currentLocationName: 'Bengaluru Trans-Corridor Terminal (Loading at Bay 2)',
+    currentCoords: { lat: 12.9716, lng: 77.5946 },
+    heading: 0,
+    route: ['Bengaluru', 'Chikkaballapur', 'Anantapur', 'Kurnool', 'Hyderabad'],
+    routeStops: ['Bengaluru Hosakote', 'Chikkaballapur', 'Anantapur Hub', 'Kurnool Node', 'Hyderabad Central Hub'],
+    optionalServiceHubs: [
+      {
+        hubId: 'HUB-BLR-01',
+        hubName: 'Bengaluru Trans-Corridor Terminal',
+        city: 'Bengaluru',
+        serviceRegion: 'Bengaluru',
+        coordinates: { lat: 12.9716, lng: 77.5946 },
+        estimatedArrivalMinutesFromNow: 35,
+        pickupWindowStatus: 'open'
+      }
+    ],
+    totalCapacityKg: 14000,
+    availableCapacityKg: 4200,
+    bookedCapacityKg: 9800,
+    status: 'At Smart Hub',
+    speedKmH: 0,
+    nextHubEtaMinutes: 35,
+    estimatedArrival: 'Tomorrow, 08:30 AM',
+    rating: 4.94,
+    supportedCargoTypes: [
+      'General Cargo',
+      'Electronics',
+      'Industrial Materials',
+      'Fragile Goods'
+    ],
+    compatibleCargoTypes: [
+      'General Cargo',
+      'Electronics',
+      'Industrial Materials',
+      'Fragile Goods'
+    ],
+    routePolyline: FREIGHT_CORRIDORS[0].coordinates,
+    currentRouteProgress: 0.05,
+    simulatedPriceEstimateRs: 4600
   }
 ];

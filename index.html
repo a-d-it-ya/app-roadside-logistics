@@ -3269,6 +3269,38 @@
         lng: 79.9410,
         heading: 260,
         priceEstimate: '₹3,900'
+      },
+      {
+        id: 'RSL-7720',
+        reg: 'KA 01 MJ 7720',
+        driverName: 'Manjunath Gowda',
+        carrier: 'Southern Grand Trunk Express',
+        vehicleClass: '32ft Multi-Axle Heavy Truck (14T)',
+        vehicleType: 'Heavy Truck',
+        origin: 'Bengaluru',
+        dest: 'Hyderabad',
+        overallOrigin: 'Bengaluru (Hosakote Concourse)',
+        overallDestination: 'Hyderabad (Sanathnagar Terminal)',
+        location: 'Bengaluru Trans-Corridor Terminal (Loading at Bay 2)',
+        currentCity: 'Bengaluru',
+        route: ['Bengaluru', 'Chikkaballapur', 'Anantapur', 'Kurnool', 'Hyderabad'],
+        optionalServiceHubs: [
+          { hubId: 'HUB-BLR-01', hubName: 'Bengaluru Trans-Corridor Terminal', city: 'Bengaluru', serviceRegion: 'Bengaluru', eta: 35, pickupWindowStatus: 'open' }
+        ],
+        totalCapKg: 14000,
+        availCapKg: 4200,
+        status: 'At Smart Hub',
+        speed: 0,
+        eta: 35,
+        estimatedArrival: 'Tomorrow, 08:30 AM',
+        rating: 4.94,
+        supportedCargo: ['General Cargo', 'Electronics', 'Industrial Materials', 'Fragile Goods'],
+        progress: 0.05,
+        polyline: FREIGHT_CORRIDORS[0].polyline.slice().reverse(),
+        lat: 12.9716,
+        lng: 77.5946,
+        heading: 0,
+        priceEstimate: '₹4,600'
       }
     ];
 
@@ -3863,18 +3895,57 @@
 
       if (destIdx === -1) return { isValid: false, reason: 'No destination on route' };
 
-      // CRITICAL: Origin MUST come before Destination
+      // CRITICAL INVARIANT 1: Origin MUST strictly precede Destination on planned route
       if (originIdx >= destIdx) {
         return { isValid: false, reason: 'Origin after Destination' };
       }
 
-      // Check if truck already passed origin
-      const currentCity = truck.currentCity || truck.location || '';
-      const currentLocLower = (truck.location || currentCity).toLowerCase();
+      // CRITICAL INVARIANT 2: Current Position must NOT have passed Origin (Source-First Hard Filter)
+      const currentCity = truck.currentLocation?.city || truck.currentCity || '';
+      const currentLoc = truck.currentLocationName || truck.location || '';
+      const currentLocLower = (currentLoc || currentCity).toLowerCase();
+
+      // 2a. Textual "passed" / "departed" flags
       if (currentLocLower.includes('passed') || currentLocLower.includes('departed')) {
         if (isCityMatch(currentLocLower, origin)) return { isValid: false, reason: 'Already passed origin' };
       }
 
+      // 2b. Dynamic Current Stop Index Resolution
+      let currentStopIdx = -1;
+      if (typeof truck.currentStopIndex === 'number') {
+        currentStopIdx = truck.currentStopIndex;
+      } else if (currentCity || currentLoc) {
+        for (let i = 0; i < routeStops.length; i++) {
+          if (isCityMatch(routeStops[i], currentCity) || (currentLoc && isCityMatch(currentLoc, routeStops[i]))) {
+            currentStopIdx = i;
+            break;
+          }
+        }
+      }
+
+      // If current stop index is strictly greater than origin stop index -> ALREADY PASSED!
+      if (currentStopIdx !== -1 && currentStopIdx > originIdx) {
+        return {
+          isValid: false,
+          reason: `Vehicle is currently at ${routeStops[currentStopIdx]} and has already passed origin ${origin}`
+        };
+      }
+
+      // 2c. If truck is currently in Origin city, verify pickup window is still open
+      if (currentStopIdx === originIdx || isCityMatch(currentCity, origin)) {
+        if (truck.optionalServiceHubs && truck.optionalServiceHubs.length > 0) {
+          const originHubs = truck.optionalServiceHubs.filter(h => isCityMatch(h.city, origin) || isCityMatch(h.serviceRegion, origin));
+          if (originHubs.length > 0) {
+            const allPassed = originHubs.every(h => h.pickupWindowStatus === 'passed');
+            if (allPassed) return { isValid: false, reason: 'Pickup window passed' };
+          }
+        }
+        if (currentLocLower.includes('cutoff passed') || currentLocLower.includes('departing in 8 mins')) {
+          return { isValid: false, reason: 'Pickup cutoff passed' };
+        }
+      }
+
+      // 2d. Check optionalServiceHubs general status
       if (truck.optionalServiceHubs && truck.optionalServiceHubs.length > 0) {
         const originHubs = truck.optionalServiceHubs.filter(h => isCityMatch(h.city, origin) || isCityMatch(h.serviceRegion, origin));
         if (originHubs.length > 0) {
@@ -3883,7 +3954,7 @@
         }
       }
 
-      return { isValid: true, originIdx, destIdx };
+      return { isValid: true, originIdx, destIdx, currentStopIdx };
     }
 
     function getUpcomingOptionalHubs(truck, criteria, availableHubs) {

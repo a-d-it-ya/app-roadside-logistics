@@ -83,7 +83,7 @@ export function validateRouteSequenceAndDirection(truck: Truck, criteria: Shipme
     return { isValid: false, reason: `Vehicle corridor does not continue to destination ${dest}` };
   }
 
-  // CRITICAL INVARIANT: Origin must strictly precede Destination
+  // CRITICAL INVARIANT 1: Origin must strictly precede Destination on planned route
   if (originIdx >= destIdx) {
     return {
       isValid: false,
@@ -91,22 +91,56 @@ export function validateRouteSequenceAndDirection(truck: Truck, criteria: Shipme
     };
   }
 
-  // 3. Upstream / Passed Check: Has the truck already passed the origin?
-  const currentCity = truck.currentLocation?.city || truck.currentCity || truck.currentLocationName || '';
-  const currentLocLower = normalizeCity(truck.currentLocationName || currentCity);
+  // CRITICAL INVARIANT 2: Current Position must NOT have passed Origin (Source-First Hard Filter)
+  const curCity = truck.currentLocation?.city || truck.currentCity || '';
+  const curLoc = truck.currentLocationName || truck.location || '';
+  const curLocLower = normalizeCity(curLoc || curCity);
 
-  if (currentLocLower.includes('passed') || currentLocLower.includes('departed')) {
-    if (isCityMatch(currentLocLower, origin)) {
-      return { isValid: false, reason: `Vehicle has already departed ${origin}` };
+  // 2a. Textual "passed" / "departed" flags
+  if (curLocLower.includes('passed') || curLocLower.includes('departed')) {
+    if (isCityMatch(curLocLower, origin)) {
+      return { isValid: false, reason: `Vehicle has already departed origin ${origin}` };
     }
   }
 
-  // Check if truck's current stop index is past the origin
-  if (typeof truck.currentStopIndex === 'number' && truck.currentStopIndex > originIdx) {
-    return { isValid: false, reason: `Vehicle has already passed ${origin}` };
+  // 2b. Dynamic Current Stop Index Resolution
+  let currentStopIdx = -1;
+  if (typeof truck.currentStopIndex === 'number') {
+    currentStopIdx = truck.currentStopIndex;
+  } else if (curCity || curLoc) {
+    for (let i = 0; i < routeStops.length; i++) {
+      if (isCityMatch(routeStops[i], curCity) || (curLoc && isCityMatch(curLoc, routeStops[i]))) {
+        currentStopIdx = i;
+        break;
+      }
+    }
   }
 
-  // Check optionalServiceHubs status
+  // If current stop index is strictly greater than origin stop index -> ALREADY PASSED!
+  if (currentStopIdx !== -1 && currentStopIdx > originIdx) {
+    return {
+      isValid: false,
+      reason: `Vehicle is currently at ${routeStops[currentStopIdx]} and has already passed origin ${origin}`
+    };
+  }
+
+  // 2c. If truck is currently in Origin city, verify pickup window is still open
+  if (currentStopIdx === originIdx || isCityMatch(curCity, origin)) {
+    if (truck.optionalServiceHubs && truck.optionalServiceHubs.length > 0) {
+      const originHubs = truck.optionalServiceHubs.filter(h => isCityMatch(h.city, origin) || isCityMatch(h.serviceRegion, origin));
+      if (originHubs.length > 0) {
+        const allPassed = originHubs.every(h => h.pickupWindowStatus === 'passed');
+        if (allPassed) {
+          return { isValid: false, reason: `Pickup cutoff in ${origin} has already passed` };
+        }
+      }
+    }
+    if (curLocLower.includes('cutoff passed') || curLocLower.includes('departing in 8 mins')) {
+      return { isValid: false, reason: `Pickup cutoff in ${origin} has already passed` };
+    }
+  }
+
+  // 2d. Check optionalServiceHubs general status
   if (truck.optionalServiceHubs && truck.optionalServiceHubs.length > 0) {
     const originHubs = truck.optionalServiceHubs.filter(h => isCityMatch(h.city, origin) || isCityMatch(h.serviceRegion, origin));
     if (originHubs.length > 0) {
@@ -117,7 +151,7 @@ export function validateRouteSequenceAndDirection(truck: Truck, criteria: Shipme
     }
   }
 
-  return { isValid: true, originIndex: originIdx, destIndex: destIdx };
+  return { isValid: true, originIndex: originIdx, destIndex: destIdx, currentStopIndex: currentStopIdx };
 }
 
 /**
