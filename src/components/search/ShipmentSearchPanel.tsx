@@ -8,7 +8,8 @@ import {
   Sparkles,
   Truck as TruckIcon,
   Package,
-  ShieldCheck
+  ShieldCheck,
+  Loader2
 } from 'lucide-react';
 import { CargoType, CargoSearchQuery, BookingMode } from '../../types/logistics';
 
@@ -310,9 +311,15 @@ export const ShipmentSearchPanel: React.FC<ShipmentSearchPanelProps> = ({
                 : 'bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-slate-950 shadow-cyan-500/20'
             }`}
           >
-            <Search className="w-4 h-4 stroke-[2.5]" />
+            {isSearching ? (
+              <Loader2 className="w-4 h-4 stroke-[2.5] animate-spin" />
+            ) : (
+              <Search className="w-4 h-4 stroke-[2.5]" />
+            )}
             <span>
-              {bookingMode === 'SHARE_CAPACITY'
+              {isSearching
+                ? 'Scoring Active Network...'
+                : bookingMode === 'SHARE_CAPACITY'
                 ? 'Find Available Shared Capacity'
                 : 'Find Available Dedicated Trucks'}
             </span>

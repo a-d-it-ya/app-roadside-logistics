@@ -707,7 +707,9 @@
           id="searchSubmitBtn"
           class="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-bold text-xs uppercase tracking-wider font-mono shadow-lg shadow-emerald-500/25 active:scale-[0.99] transition flex items-center justify-center gap-2"
         >
-          <i data-lucide="search" id="searchBtnIcon" class="w-4 h-4 stroke-[2.5]"></i>
+          <span id="searchBtnIconWrapper" class="flex items-center">
+            <i data-lucide="search" class="w-4 h-4 stroke-[2.5]"></i>
+          </span>
           <span id="searchBtnText">Find Available Capacity</span>
         </button>
 
@@ -4652,27 +4654,35 @@
       }
     }
 
+    function setSearchButtonLoading(isLoading) {
+      const btnWrapper = document.getElementById('searchBtnIconWrapper');
+      const btnText = document.getElementById('searchBtnText');
+      const submitBtn = document.getElementById('searchSubmitBtn');
+      if (!btnText) return;
+
+      if (isLoading) {
+        btnText.innerText = 'Scoring Active Network...';
+        if (btnWrapper) {
+          btnWrapper.innerHTML = `<svg class="w-4 h-4 animate-spin text-slate-950" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>`;
+        }
+        if (submitBtn) submitBtn.disabled = true;
+      } else {
+        btnText.innerText = currentBookingMode === 'SHARE_CAPACITY' ? 'Find Available Capacity' : 'Find Available Dedicated Trucks';
+        if (btnWrapper) {
+          btnWrapper.innerHTML = `<i data-lucide="search" class="w-4 h-4 stroke-[2.5]"></i>`;
+        }
+        if (submitBtn) submitBtn.disabled = false;
+        lucide.createIcons();
+      }
+    }
+
     function handleSearch(e) {
       if (e) e.preventDefault();
       
-      const submitBtn = document.getElementById('searchSubmitBtn');
-      const btnText = document.getElementById('searchBtnText');
-      const btnIcon = document.getElementById('searchBtnIcon');
-
-      if (btnText) btnText.innerText = 'Scoring Active Network...';
-      if (btnIcon) {
-        btnIcon.setAttribute('data-lucide', 'loader-2');
-        btnIcon.classList.add('animate-spin');
-      }
-      lucide.createIcons();
+      setSearchButtonLoading(true);
 
       setTimeout(() => {
-        if (btnText) btnText.innerText = currentBookingMode === 'SHARE_CAPACITY' ? 'Find Available Capacity' : 'Find Available Dedicated Trucks';
-        if (btnIcon) {
-          btnIcon.setAttribute('data-lucide', 'search');
-          btnIcon.classList.remove('animate-spin');
-        }
-        lucide.createIcons();
+        setSearchButtonLoading(false);
 
         const criteria = getSearchCriteriaFromInputs();
         lastSearchCriteria = criteria;
@@ -5447,6 +5457,7 @@
       selectedTruckId = null;
       document.getElementById('matchingResultsPanel').classList.add('hidden');
       document.getElementById('shipmentSearchPanel')?.classList.remove('hidden');
+      setSearchButtonLoading(false);
 
       TRUCKS.forEach(truck => {
         const marker = truckMarkersMap[truck.id];
@@ -5471,6 +5482,7 @@
     }
 
     function editSearchCriteria() {
+      setSearchButtonLoading(false);
       document.getElementById('matchingResultsPanel').classList.add('hidden');
       document.getElementById('shipmentSearchPanel')?.classList.remove('hidden');
     }
@@ -5481,6 +5493,7 @@
 
     function viewNearbyCorridors() {
       resetTruckSearch();
+      setSearchButtonLoading(false);
       map.setView([17.0, 79.5], 7, { animate: true, duration: 0.8 });
     }
 
