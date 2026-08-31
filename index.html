@@ -326,6 +326,11 @@
           <span>My Shipments</span>
         </button>
 
+        <button id="navDriverApp" onclick="openDriverModal()" class="flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium text-emerald-400 bg-emerald-950/50 hover:bg-emerald-900/60 border border-emerald-500/40 transition" title="Open Driver Mobile In-Cab Interface">
+          <i data-lucide="radio" class="w-3.5 h-3.5 text-emerald-400 animate-pulse"></i>
+          <span>Driver App</span>
+        </button>
+
         <button id="navHowItWorks" onclick="openHowItWorksModal()" class="flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 transition">
           <i data-lucide="help-circle" class="w-3.5 h-3.5"></i>
           <span>How It Works</span>
@@ -2163,6 +2168,174 @@
       <div class="flex justify-end pt-2 border-t border-slate-800">
         <button onclick="closeHowItWorksModal()" class="px-5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold font-mono transition">
           Got It
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ==================================================== -->
+  <!-- ROADSIDE DRIVER COCKPIT MODAL (Phase 10)             -->
+  <!-- ==================================================== -->
+  <div id="driverModal" class="hidden fixed inset-0 z-[2000] flex items-center justify-center p-3 sm:p-5 bg-black/80 backdrop-blur-md animate-fadeIn">
+    <div class="relative w-full max-w-2xl bg-slate-900 border border-slate-700/80 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
+      
+      <!-- Header -->
+      <div class="px-5 py-4 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 border-b border-slate-800 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center shadow-lg shadow-emerald-500/10">
+            <i data-lucide="truck" class="w-5 h-5 text-emerald-400"></i>
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <h2 class="text-base font-bold text-white tracking-wide uppercase font-mono">
+                RoadSide Driver Cockpit
+              </h2>
+              <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-950 text-emerald-300 border border-emerald-500/30 flex items-center gap-1 font-mono">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                LIVE IN-CAB
+              </span>
+            </div>
+            <p class="text-xs text-slate-400">Mobile telemetry & dynamic waypoint manager</p>
+          </div>
+        </div>
+
+        <button onclick="closeDriverModal()" class="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <!-- Driver Notification Banner -->
+      <div id="driverNotification" class="hidden mx-5 mt-3 p-3 rounded-xl bg-emerald-950/90 border border-emerald-500/40 text-emerald-200 text-xs flex items-center gap-2 shadow-lg">
+        <i data-lucide="shield-check" class="w-4 h-4 text-emerald-400 shrink-0"></i>
+        <span id="driverNotificationText">Notification</span>
+      </div>
+
+      <!-- Body -->
+      <div class="p-5 overflow-y-auto space-y-4 font-sans text-slate-200">
+        
+        <!-- Active Assigned Trip Card -->
+        <div class="p-4 rounded-2xl bg-slate-950/80 border border-slate-800 shadow-inner">
+          <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center gap-2">
+              <span className="text-xs font-mono font-bold text-slate-400">TRIP ID:</span>
+              <span class="px-2 py-0.5 rounded-md bg-slate-800 text-xs font-mono font-bold text-emerald-300">
+                TRIP-HYD-MAA-5510
+              </span>
+            </div>
+            <span id="driverTripBadge" class="px-2.5 py-1 rounded-full text-[11px] font-bold font-mono uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+              ● IN PROGRESS
+            </span>
+          </div>
+
+          <div class="flex items-center gap-2 text-sm font-semibold text-white mb-2">
+            <i data-lucide="map-pin" class="w-4 h-4 text-emerald-400 shrink-0"></i>
+            <span>Visakhapatnam</span>
+            <i data-lucide="chevron-right" class="w-4 h-4 text-slate-500"></i>
+            <span class="text-emerald-300">Chennai Port Gateway</span>
+          </div>
+
+          <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-3 pt-3 border-t border-slate-800/80 text-xs font-mono">
+            <div>
+              <span class="text-slate-500 block text-[10px] uppercase">Vehicle Reg</span>
+              <span class="font-bold text-white">AP 31 TT 5510</span>
+            </div>
+            <div>
+              <span class="text-slate-500 block text-[10px] uppercase">Available Payload</span>
+              <span class="font-bold text-emerald-400">3,100 kg</span>
+            </div>
+            <div class="col-span-2 sm:col-span-1">
+              <span class="text-slate-500 block text-[10px] uppercase">Vehicle Class</span>
+              <span class="font-medium text-slate-300">28ft Container</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Live GPS Telemetry HUD -->
+        <div class="p-4 rounded-2xl bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 border border-slate-800">
+          <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center gap-2">
+              <i data-lucide="radio" class="w-4 h-4 text-emerald-400 animate-pulse"></i>
+              <span class="text-xs font-bold font-mono uppercase tracking-wider text-slate-300">
+                Device GPS Telemetry Stream
+              </span>
+            </div>
+            <span id="driverGpsSync" class="text-[10px] font-mono text-emerald-400">
+              ● Synced Live
+            </span>
+          </div>
+
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 font-mono">
+            <div class="p-2.5 rounded-xl bg-slate-900/90 border border-slate-800">
+              <span class="text-[10px] text-slate-500 uppercase block">Latitude</span>
+              <span id="driverLat" class="text-sm font-bold text-white">17.3100° N</span>
+            </div>
+            <div class="p-2.5 rounded-xl bg-slate-900/90 border border-slate-800">
+              <span class="text-[10px] text-slate-500 uppercase block">Longitude</span>
+              <span id="driverLng" class="text-sm font-bold text-white">78.6800° E</span>
+            </div>
+            <div class="p-2.5 rounded-xl bg-slate-900/90 border border-slate-800">
+              <span class="text-[10px] text-slate-500 uppercase block">Speed</span>
+              <span id="driverSpeed" class="text-sm font-bold text-cyan-300">54 km/h</span>
+            </div>
+            <div class="p-2.5 rounded-xl bg-slate-900/90 border border-slate-800">
+              <span class="text-[10px] text-slate-500 uppercase block">Heading</span>
+              <span class="text-sm font-bold text-emerald-300">135° SE</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Corridor Waypoint Sequence -->
+        <div class="p-4 rounded-2xl bg-slate-950/80 border border-slate-800">
+          <span class="text-xs font-bold font-mono uppercase tracking-wider text-slate-400 block mb-3">
+            Corridor Waypoints Sequence
+          </span>
+
+          <div class="space-y-2 font-mono text-xs">
+            <div class="flex items-center justify-between p-2.5 rounded-xl border bg-slate-900/50 border-slate-800 text-slate-400">
+              <span>1. Vizag Port Express Node</span>
+              <span class="px-2 py-0.5 rounded bg-slate-800 text-[10px] font-bold text-slate-400">COMPLETED</span>
+            </div>
+            <div class="flex items-center justify-between p-2.5 rounded-xl border bg-emerald-950/40 border-emerald-500/50 text-white font-semibold shadow-sm">
+              <span>2. Hyderabad East Logistics Park (Hayathnagar)</span>
+              <span class="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-bold">CURRENT</span>
+            </div>
+            <div class="flex items-center justify-between p-2.5 rounded-xl border bg-slate-900/90 border-slate-800 text-slate-300">
+              <span>3. Chennai Port Smart Logistics Gateway</span>
+              <span class="px-2 py-0.5 rounded bg-slate-800 text-[10px] font-bold text-slate-400">UPCOMING</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Milestone Quick Triggers -->
+        <div class="p-4 rounded-2xl bg-slate-950/80 border border-slate-800">
+          <span class="text-xs font-bold font-mono uppercase tracking-wider text-slate-400 block mb-2.5">
+            Hub Milestone Quick Triggers
+          </span>
+
+          <div class="grid grid-cols-3 gap-2">
+            <button onclick="triggerDriverMilestone('TRUCK_ARRIVED', 'Arrived at Freight Hub')" class="p-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-medium text-slate-200 transition flex flex-col items-center gap-1">
+              <i data-lucide="map-pin" class="w-4 h-4 text-cyan-400"></i>
+              <span>Arrived Hub</span>
+            </button>
+            <button onclick="triggerDriverMilestone('LOADED', 'Cargo Loaded & Secured')" class="p-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-medium text-slate-200 transition flex flex-col items-center gap-1">
+              <i data-lucide="package" class="w-4 h-4 text-emerald-400"></i>
+              <span>Cargo Loaded</span>
+            </button>
+            <button onclick="triggerDriverMilestone('IN_TRANSIT', 'Departed Forward Route')" class="p-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-medium text-slate-200 transition flex flex-col items-center gap-1">
+              <i data-lucide="navigation" class="w-4 h-4 text-amber-400"></i>
+              <span>Departed</span>
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Footer Actions -->
+      <div class="p-4 bg-slate-950 border-t border-slate-800 flex items-center justify-between gap-3">
+        <button id="driverActionBtn" onclick="toggleDriverTripState()" class="w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-slate-950 font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 transition font-mono uppercase tracking-wider">
+          <i data-lucide="play" class="w-4 h-4 fill-slate-950"></i>
+          <span id="driverActionLabel">Journey Active (Live In-Cab GPS Streaming)</span>
         </button>
       </div>
 
@@ -7380,6 +7553,91 @@
 
       if (trackingAutoFollow) {
         trackingMap.panTo([truckPos.lat, truckPos.lng], { animate: true, duration: 0.2 });
+      }
+    }
+
+    // ----------------------------------------------------
+    // DRIVER COCKPIT CONTROLLERS (Phase 10)
+    // ----------------------------------------------------
+    let driverTripActive = true;
+    let driverGpsInterval = null;
+
+    function openDriverModal() {
+      const modal = document.getElementById('driverModal');
+      if (modal) {
+        modal.classList.remove('hidden');
+        lucide.createIcons();
+        startDriverGpsSimulation();
+      }
+    }
+
+    function closeDriverModal() {
+      const modal = document.getElementById('driverModal');
+      if (modal) {
+        modal.classList.add('hidden');
+      }
+      if (driverGpsInterval) {
+        clearInterval(driverGpsInterval);
+        driverGpsInterval = null;
+      }
+    }
+
+    function toggleDriverTripState() {
+      driverTripActive = !driverTripActive;
+      const badge = document.getElementById('driverTripBadge');
+      const actionBtn = document.getElementById('driverActionBtn');
+      const actionLabel = document.getElementById('driverActionLabel');
+
+      if (driverTripActive) {
+        badge.className = 'px-2.5 py-1 rounded-full text-[11px] font-bold font-mono uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/40';
+        badge.innerText = '● IN PROGRESS';
+        actionBtn.className = 'w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-slate-950 font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 transition font-mono uppercase tracking-wider';
+        actionLabel.innerText = 'Journey Active (Live In-Cab GPS Streaming)';
+        startDriverGpsSimulation();
+        showDriverNotification('✅ Journey started! Live GPS telemetry streaming active.');
+      } else {
+        badge.className = 'px-2.5 py-1 rounded-full text-[11px] font-bold font-mono uppercase tracking-wider bg-slate-800 text-slate-400 border border-slate-700';
+        badge.innerText = 'COMPLETED';
+        actionBtn.className = 'w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-red-600 to-rose-500 hover:from-red-500 hover:to-rose-400 text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-red-500/20 transition font-mono uppercase tracking-wider';
+        actionLabel.innerText = 'Trip Completed (Click to Restart Journey)';
+        if (driverGpsInterval) clearInterval(driverGpsInterval);
+        showDriverNotification('🎉 Trip completed! Vehicle payload returned to AVAILABLE.');
+      }
+    }
+
+    function startDriverGpsSimulation() {
+      if (driverGpsInterval) clearInterval(driverGpsInterval);
+      let lat = 17.3100;
+      let lng = 78.6800;
+
+      driverGpsInterval = setInterval(() => {
+        if (!driverTripActive) return;
+        lat -= 0.0008;
+        lng += 0.0012;
+        const latEl = document.getElementById('driverLat');
+        const lngEl = document.getElementById('driverLng');
+        const speedEl = document.getElementById('driverSpeed');
+        const syncEl = document.getElementById('driverGpsSync');
+
+        if (latEl) latEl.innerText = `${lat.toFixed(4)}° N`;
+        if (lngEl) lngEl.innerText = `${lng.toFixed(4)}° E`;
+        if (speedEl) speedEl.innerText = `${52 + Math.floor(Math.random() * 8)} km/h`;
+        if (syncEl) syncEl.innerText = `● Synced ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`;
+      }, 3000);
+    }
+
+    function triggerDriverMilestone(type, title) {
+      showDriverNotification(`📌 Milestone recorded: ${title}`);
+    }
+
+    function showDriverNotification(msg) {
+      const el = document.getElementById('driverNotification');
+      const textEl = document.getElementById('driverNotificationText');
+      if (el && textEl) {
+        textEl.innerText = msg;
+        el.classList.remove('hidden');
+        lucide.createIcons();
+        setTimeout(() => el.classList.add('hidden'), 3500);
       }
     }
 

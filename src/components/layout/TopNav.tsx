@@ -21,6 +21,7 @@ interface TopNavProps {
   onTabChange: (tab: 'explore' | 'shipments' | 'howItWorks') => void;
   onOpenHowItWorks?: () => void;
   onOpenProfile?: () => void;
+  onOpenDriverApp?: () => void;
 }
 
 export const TopNav: React.FC<TopNavProps> = ({
@@ -28,7 +29,8 @@ export const TopNav: React.FC<TopNavProps> = ({
   activeTab,
   onTabChange,
   onOpenHowItWorks,
-  onOpenProfile
+  onOpenProfile,
+  onOpenDriverApp
 }) => {
   const { user, isAuthenticated, signOut, openAuthModal } = useAuth();
   const [hasUnreadAlert, setHasUnreadAlert] = useState(true);
@@ -91,6 +93,17 @@ export const TopNav: React.FC<TopNavProps> = ({
 
           <button
             onClick={() => {
+              if (onOpenDriverApp) onOpenDriverApp();
+            }}
+            className="flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium text-emerald-400 bg-emerald-950/40 hover:bg-emerald-900/50 border border-emerald-500/30 transition-all"
+            title="Open Driver Mobile In-Cab Interface"
+          >
+            <Radio className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
+            <span>Driver App</span>
+          </button>
+
+          <button
+            onClick={() => {
               onTabChange('howItWorks');
               if (onOpenHowItWorks) onOpenHowItWorks();
             }}
@@ -107,6 +120,16 @@ export const TopNav: React.FC<TopNavProps> = ({
 
         {/* Right Side Actions */}
         <div className="flex items-center gap-3">
+          {/* Driver App Button for Mobile */}
+          <button
+            onClick={() => {
+              if (onOpenDriverApp) onOpenDriverApp();
+            }}
+            className="md:hidden flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 text-xs font-mono font-semibold"
+          >
+            <Truck className="w-3.5 h-3.5" />
+            <span>Driver</span>
+          </button>
           {/* Notifications */}
           <div className="relative">
             <button

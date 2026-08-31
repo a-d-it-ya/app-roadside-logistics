@@ -12,6 +12,7 @@ import { MyShipmentsModal } from './components/shipments/MyShipmentsModal';
 import { LiveTrackingModal } from './components/tracking/LiveTrackingModal';
 import { AuthModal } from './components/auth/AuthModal';
 import { MyProfileModal } from './components/auth/MyProfileModal';
+import { DriverDashboardModal } from './components/driver/DriverDashboardModal';
 import { TruckDetailCard } from './components/map/TruckDetailCard';
 import { HubDetailCard } from './components/map/HubDetailCard';
 import { FreightNetworkMap } from './components/map/FreightNetworkMap';
@@ -67,6 +68,7 @@ const AppContent: React.FC = () => {
   const [isMyShipmentsOpen, setIsMyShipmentsOpen] = useState(false);
   const [isLiveTrackingOpen, setIsLiveTrackingOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isDriverDashboardOpen, setIsDriverDashboardOpen] = useState(false);
   const [activeTrackingShipment, setActiveTrackingShipment] = useState<BookingRecord | null>(null);
   const [selectedSharedMatch, setSelectedSharedMatch] = useState<ScoredTruckMatch | null>(null);
   const [selectedDedicatedTruck, setSelectedDedicatedTruck] = useState<DedicatedTruck | null>(null);
@@ -340,6 +342,7 @@ const AppContent: React.FC = () => {
         }}
         onOpenHowItWorks={() => {}}
         onOpenProfile={() => setIsProfileOpen(true)}
+        onOpenDriverApp={() => setIsDriverDashboardOpen(true)}
       />
 
       {/* Floating Shipment Search Panel (Features 1 & 6) */}
@@ -482,6 +485,12 @@ const AppContent: React.FC = () => {
           setIsProfileOpen(false);
           setIsMyShipmentsOpen(true);
         }}
+      />
+
+      {/* DRIVER WEB/MOBILE DASHBOARD (Phase 10) */}
+      <DriverDashboardModal
+        isOpen={isDriverDashboardOpen}
+        onClose={() => setIsDriverDashboardOpen(false)}
       />
     </div>
   );

@@ -1,0 +1,395 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ----------------------------------------------------
+// 1. ENUMS
+// ----------------------------------------------------
+enum OrganizationType {
+  SHIPPER
+  FLEET_PARTNER
+  LOGISTICS_COMPANY
+  ROADSIDE_INTERNAL
+}
+
+enum MemberRole {
+  OWNER
+  ADMIN
+  FLEET_MANAGER
+  DISPATCHER
+  SHIPPER
+  DRIVER
+}
+
+enum DriverStatus {
+  AVAILABLE
+  ON_TRIP
+  OFFLINE
+  INACTIVE
+}
+
+enum VehicleStatus {
+  AVAILABLE
+  ON_TRIP
+  MAINTENANCE
+  INACTIVE
+}
+
+enum HubType {
+  PRIMARY_GATEWAY
+  REGIONAL_CROSSDOCK
+  TRANSIT_TERMINAL
+  CORRIDOR_HUB
+  WAREHOUSE
+}
+
+enum TripStatus {
+  PLANNED
+  READY_TO_START
+  IN_PROGRESS
+  PAUSED
+  COMPLETED
+  CANCELLED
+}
+
+enum StopStatus {
+  UPCOMING
+  CURRENT
+  COMPLETED
+  SKIPPED
+}
+
+enum BookingMode {
+  SHARED_CAPACITY
+  FULL_VEHICLE
+}
+
+enum ShipmentStatus {
+  DRAFT
+  REQUESTED
+  MATCHED
+  CONFIRMED
+  LOADING_WINDOW_OPEN
+  LOADED
+  IN_TRANSIT
+  ARRIVED_DESTINATION
+  DELIVERED
+  CANCELLED
+}
+
+enum EventType {
+  BOOKING_CONFIRMED
+  CARGO_READY
+  TRUCK_APPROACHING
+  TRUCK_ARRIVED
+  LOADING_STARTED
+  LOADED
+  DEPARTED
+  IN_TRANSIT
+  ARRIVED
+  DELIVERED
+  PICKUP_MISSED
+}
+
+// ----------------------------------------------------
+// 2. CORE MULTI-TENANT ENTITIES
+// ----------------------------------------------------
+
+model User {
+  id               String                 @id @default(uuid())
+  fullName         String                 @map("full_name")
+  email            String                 @unique
+  phone            String?
+  passwordHash     String                 @map("password_hash")
+  isActive         Boolean                @default(true) @map("is_active")
+  isVerified       Boolean                @default(false) @map("is_verified")
+  createdAt        DateTime               @default(now()) @map("created_at")
+  updatedAt        DateTime               @updatedAt @map("updated_at")
+
+  memberships      OrganizationMember[]
+  drivers          Driver[]
+  shipments        Shipment[]
+
+  @@map("users")
+}
+
+model Organization {
+  id               String                 @id @default(uuid())
+  name             String
+  organizationType OrganizationType       @default(SHIPPER) @map("organization_type")
+  createdAt        DateTime               @default(now()) @map("created_at")
+  updatedAt        DateTime               @updatedAt @map("updated_at")
+
+  members          OrganizationMember[]
+  vehicles         Vehicle[]
+  drivers          Driver[]
+  trips            Trip[]
+  shipments        Shipment[]
+
+  @@map("organizations")
+}
+
+model OrganizationMember {
+  id               String                 @id @default(uuid())
+  userId           String                 @map("user_id")
+  organizationId   String                 @map("organization_id")
+  role             MemberRole             @default(MEMBER)
+  createdAt        DateTime               @default(now()) @map("created_at")
+
+  user             User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization     Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, organizationId])
+  @@map("organization_members")
+}
+
+// ----------------------------------------------------
+// 3. FLEET & DRIVER ENTITIES
+// ----------------------------------------------------
+
+model Driver {
+  id               String                 @id @default(uuid())
+  userId           String?                @map("user_id")
+  organizationId   String                 @map("organization_id")
+  fullName         String                 @map("full_name")
+  phone            String
+  licenseNumber    String?                @map("license_number")
+  status           DriverStatus           @default(AVAILABLE)
+  createdAt        DateTime               @default(now()) @map("created_at")
+  updatedAt        DateTime               @updatedAt @map("updated_at")
+
+  user             User?                  @relation(fields: [userId], references: [id], onDelete: SetNull)
+  organization     Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  assignments      DriverVehicleAssignment[]
+  trips            Trip[]
+
+  @@map("drivers")
+}
+
+model Vehicle {
+  id                   String             @id @default(uuid())
+  organizationId       String             @map("organization_id")
+  registrationNumber   String             @unique @map("registration_number")
+  vehicleClass         String             @map("vehicle_class")
+  vehicleType          String             @map("vehicle_type")
+  totalCapacityKg      Float              @map("total_capacity_kg")
+  supportedCargoTypes  String[]           @map("supported_cargo_types")
+  status               VehicleStatus      @default(AVAILABLE)
+  createdAt            DateTime           @default(now()) @map("created_at")
+  updatedAt            DateTime           @updatedAt @map("updated_at")
+
+  organization         Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  driverAssignments    DriverVehicleAssignment[]
+  trips                Trip[]
+  locations            VehicleLocation[]
+  latestLocation       LatestVehicleLocation?
+  bookings             Booking[]
+
+  @@map("vehicles")
+}
+
+model DriverVehicleAssignment {
+  id               String                 @id @default(uuid())
+  driverId         String                 @map("driver_id")
+  vehicleId        String                 @map("vehicle_id")
+  assignedAt       DateTime               @default(now()) @map("assigned_at")
+  unassignedAt     DateTime?              @map("unassigned_at")
+  isActive         Boolean                @default(true) @map("is_active")
+
+  driver           Driver                 @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  vehicle          Vehicle                @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  @@map("driver_vehicle_assignments")
+}
+
+// ----------------------------------------------------
+// 4. HUBS & CORRIDORS
+// ----------------------------------------------------
+
+model Hub {
+  id                   String             @id @default(uuid())
+  code                 String             @unique
+  name                 String
+  address              String
+  city                 String
+  state                String
+  country              String             @default("India")
+  latitude             Float
+  longitude            Float
+  hubType              HubType            @default(CORRIDOR_HUB) @map("hub_type")
+  supportedCargoTypes  String[]           @map("supported_cargo_types")
+  isActive             Boolean            @default(true) @map("is_active")
+  createdAt            DateTime           @default(now()) @map("created_at")
+  updatedAt            DateTime           @updatedAt @map("updated_at")
+
+  originTrips          Trip[]             @relation("TripOriginHub")
+  destinationTrips     Trip[]             @relation("TripDestinationHub")
+  routeStops           TripRouteStop[]
+  pickupShipments      Shipment[]         @relation("ShipmentPickupHub")
+  deliveryShipments    Shipment[]         @relation("ShipmentDeliveryHub")
+
+  @@index([city])
+  @@index([latitude, longitude])
+  @@map("hubs")
+}
+
+// ----------------------------------------------------
+// 5. TRIPS & ROUTE STOPS
+// ----------------------------------------------------
+
+model Trip {
+  id                   String             @id @default(uuid())
+  organizationId       String             @map("organization_id")
+  vehicleId            String             @map("vehicle_id")
+  driverId             String?            @map("driver_id")
+  originHubId          String             @map("origin_hub_id")
+  destinationHubId     String             @map("destination_hub_id")
+  
+  availableCapacityKg  Float              @map("available_capacity_kg")
+  status               TripStatus         @default(PLANNED)
+  plannedStartTime     DateTime           @map("planned_start_time")
+  actualStartTime      DateTime?          @map("actual_start_time")
+  estimatedArrival     DateTime?          @map("estimated_arrival")
+  actualEndTime        DateTime?          @map("actual_end_time")
+  createdAt            DateTime           @default(now()) @map("created_at")
+  updatedAt            DateTime           @updatedAt @map("updated_at")
+
+  organization         Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  vehicle              Vehicle            @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  driver               Driver?            @relation(fields: [driverId], references: [id], onDelete: SetNull)
+  originHub            Hub                @relation("TripOriginHub", fields: [originHubId], references: [id])
+  destinationHub       Hub                @relation("TripDestinationHub", fields: [destinationHubId], references: [id])
+  
+  routeStops           TripRouteStop[]
+  locations            VehicleLocation[]
+  bookings             Booking[]
+
+  @@map("trips")
+}
+
+model TripRouteStop {
+  id               String                 @id @default(uuid())
+  tripId           String                 @map("trip_id")
+  hubId            String                 @map("hub_id")
+  stopOrder        Int                    @map("stop_order")
+  plannedArrival   DateTime?              @map("planned_arrival")
+  plannedDeparture DateTime?              @map("planned_departure")
+  actualArrival    DateTime?              @map("actual_arrival")
+  actualDeparture  DateTime?              @map("actual_departure")
+  status           StopStatus             @default(UPCOMING)
+
+  trip             Trip                   @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  hub              Hub                    @relation(fields: [hubId], references: [id], onDelete: Cascade)
+
+  @@unique([tripId, stopOrder])
+  @@map("trip_route_stops")
+}
+
+// ----------------------------------------------------
+// 6. TELEMETRY & LOCATIONS
+// ----------------------------------------------------
+
+model VehicleLocation {
+  id               String                 @id @default(uuid())
+  vehicleId        String                 @map("vehicle_id")
+  tripId           String?                @map("trip_id")
+  latitude         Float
+  longitude        Float
+  speedKmH         Float?                 @map("speed_km_h")
+  heading          Float?
+  accuracyMeters   Float?                 @map("accuracy_meters")
+  recordedAt       DateTime               @default(now()) @map("recorded_at")
+  source           String                 @default("DRIVER_APP")
+
+  vehicle          Vehicle                @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  trip             Trip?                  @relation(fields: [tripId], references: [id], onDelete: SetNull)
+
+  @@index([vehicleId, recordedAt(sort: Desc)])
+  @@index([tripId])
+  @@map("vehicle_locations")
+}
+
+model LatestVehicleLocation {
+  vehicleId        String                 @id @map("vehicle_id")
+  tripId           String?                @map("trip_id")
+  latitude         Float
+  longitude        Float
+  speedKmH         Float?                 @map("speed_km_h")
+  heading          Float?
+  accuracyMeters   Float?                 @map("accuracy_meters")
+  updatedAt        DateTime               @updatedAt @map("updated_at")
+
+  vehicle          Vehicle                @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  @@map("latest_vehicle_locations")
+}
+
+// ----------------------------------------------------
+// 7. SHIPMENTS, BOOKINGS & EVENTS
+// ----------------------------------------------------
+
+model Shipment {
+  id                   String             @id @default(uuid())
+  userId               String             @map("user_id")
+  organizationId       String             @map("organization_id")
+  origin               String
+  destination          String
+  cargoWeightKg        Float              @map("cargo_weight_kg")
+  cargoType            String             @map("cargo_type")
+  bookingMode          BookingMode        @default(SHARED_CAPACITY) @map("booking_mode")
+  status               ShipmentStatus     @default(REQUESTED)
+  
+  pickupHubId          String?            @map("pickup_hub_id")
+  deliveryHubId        String?            @map("delivery_hub_id")
+  
+  createdAt            DateTime           @default(now()) @map("created_at")
+  updatedAt            DateTime           @updatedAt @map("updated_at")
+
+  user                 User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization         Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  pickupHub            Hub?               @relation("ShipmentPickupHub", fields: [pickupHubId], references: [id])
+  deliveryHub          Hub?               @relation("ShipmentDeliveryHub", fields: [deliveryHubId], references: [id])
+  
+  bookings             Booking[]
+  events               ShipmentEvent[]
+
+  @@map("shipments")
+}
+
+model Booking {
+  id                   String             @id @default(uuid())
+  shipmentId           String             @map("shipment_id")
+  tripId               String             @map("trip_id")
+  vehicleId            String             @map("vehicle_id")
+  bookingMode          BookingMode        @map("booking_mode")
+  reservedCapacityKg   Float              @map("reserved_capacity_kg")
+  priceRs              Float              @map("price_rs")
+  status               String             @default("CONFIRMED")
+  createdAt            DateTime           @default(now()) @map("created_at")
+
+  shipment             Shipment           @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  trip                 Trip               @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  vehicle              Vehicle            @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  @@map("bookings")
+}
+
+model ShipmentEvent {
+  id               String                 @id @default(uuid())
+  shipmentId       String                 @map("shipment_id")
+  eventType        EventType              @map("event_type")
+  title            String
+  description      String
+  location         String?
+  createdAt        DateTime               @default(now()) @map("created_at")
+
+  shipment         Shipment               @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+
+  @@index([shipmentId, createdAt])
+  @@map("shipment_events")
+}
