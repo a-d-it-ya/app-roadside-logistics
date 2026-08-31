@@ -6689,35 +6689,53 @@
         users = [DEFAULT_DEMO_USER];
       }
 
-      let user = users.find(u => u.email.toLowerCase() === email);
-      if (!user) {
-        // Create user on the fly if testing on live preview
-        user = {
-          id: `USR-${Math.floor(1000 + Math.random() * 9000)}`,
-          name: email.split('@')[0].toUpperCase(),
-          email: email,
-          phone: '9876543210',
-          accountType: 'Individual',
+      // Default demo shortcuts
+      if (email === 'demo@roadside.in' && password === 'RoadSide123') {
+        CURRENT_USER = DEFAULT_DEMO_USER;
+      } else if (email === 'driver.suresh@roadside.in' && password === 'RoadSide123') {
+        CURRENT_USER = {
+          id: 'USR-DRV-1001',
+          name: 'Suresh Naidu',
+          email: 'driver.suresh@roadside.in',
+          phone: '9848012345',
+          role: 'DRIVER',
+          accountType: 'Driver',
+          licenseNumber: 'DL-0820200192834',
+          assignedVehicleReg: 'AP 31 TT 5510',
           memberSince: 'August 2026'
         };
-      }
+      } else {
+        const user = users.find(u => u.email.toLowerCase() === email);
+        if (!user) {
+          return showAuthError('No account found with this email. Please check your email or click Create Account.');
+        }
+        if (user.password && user.password !== password) {
+          return showAuthError('Incorrect password. Please verify your credentials and try again.');
+        }
 
-      CURRENT_USER = {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        phone: user.phone || '9876543210',
-        accountType: user.accountType || 'Individual',
-        companyName: user.companyName,
-        memberSince: user.memberSince || 'August 2026'
-      };
+        const isDriver = user.role === 'DRIVER' || user.accountType === 'Driver';
+        CURRENT_USER = {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          phone: user.phone || '9876543210',
+          role: user.role,
+          accountType: isDriver ? 'Driver' : 'Business',
+          companyName: user.companyName,
+          licenseNumber: user.licenseNumber,
+          assignedVehicleReg: user.assignedVehicleReg,
+          memberSince: user.memberSince || 'August 2026'
+        };
+      }
 
       localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(CURRENT_USER));
       updateNavAuthUI();
 
       showAuthSuccess(`✓ Welcome back, ${CURRENT_USER.name.split(' ')[0]}!`, () => {
         closeAuthModal();
-        if (pendingBookingAction) {
+        if (CURRENT_USER.role === 'DRIVER' || CURRENT_USER.accountType === 'Driver') {
+          openDriverModal();
+        } else if (pendingBookingAction) {
           pendingBookingAction = false;
           executeBookingConfirmation();
         }

@@ -117,7 +117,7 @@ export const authService = {
   },
 
   /**
-   * Authenticate user with email and password via real backend (or instant demo session).
+   * Authenticate user with email and password via real backend (or registered user check).
    */
   async signIn(payload: LoginPayload): Promise<User> {
     try {
@@ -136,27 +136,82 @@ export const authService = {
       localStorage.setItem(USER_CACHE_KEY, JSON.stringify(user));
       return user;
     } catch (err: any) {
+      const email = (payload.email || '').trim().toLowerCase();
+      const pass = payload.password;
+
+      // Check registered users in local storage
+      let usersDb: any[] = [];
+      try {
+        usersDb = JSON.parse(localStorage.getItem('rsl_users_db') || '[]');
+      } catch (e) {}
+
+      const found = usersDb.find((u: any) => u.email.toLowerCase() === email);
+
+      if (email === 'demo@roadside.in' && pass === 'RoadSide123') {
+        const demoUser: User = {
+          id: 'USR-1001-DEMO',
+          name: 'Aditya Singh',
+          email: 'demo@roadside.in',
+          phone: '9876543210',
+          accountType: 'Business',
+          role: 'BUSINESS',
+          companyName: 'RoadSide Enterprise Logistics',
+          memberSince: 'August 2026',
+          isActive: true,
+          isVerified: true,
+          organizations: [
+            {
+              id: 'ORG-MEM-01',
+              organizationId: 'ORG-01',
+              organizationName: 'RoadSide Enterprise Logistics',
+              organizationType: 'SHIPPER',
+              role: 'OWNER',
+              createdAt: '2026-08-31T00:00:00Z',
+            },
+          ],
+        };
+        setAccessToken(`demo_jwt_token_${Date.now()}`);
+        localStorage.setItem(USER_CACHE_KEY, JSON.stringify(demoUser));
+        return demoUser;
+      } else if (email === 'driver.suresh@roadside.in' && pass === 'RoadSide123') {
+        const driverUser: User = {
+          id: 'USR-DRV-1001',
+          name: 'Suresh Naidu',
+          email: 'driver.suresh@roadside.in',
+          phone: '9848012345',
+          accountType: 'Driver',
+          role: 'DRIVER',
+          licenseNumber: 'DL-0820200192834',
+          assignedVehicleReg: 'AP 31 TT 5510',
+          memberSince: 'August 2026',
+          isActive: true,
+          isVerified: true,
+        };
+        setAccessToken(`demo_jwt_token_${Date.now()}`);
+        localStorage.setItem(USER_CACHE_KEY, JSON.stringify(driverUser));
+        return driverUser;
+      } else if (!found) {
+        throw new Error('No account found with this email address. Please click Sign Up to register.');
+      } else if (found.password && found.password !== pass) {
+        throw new Error('Incorrect password. Please verify and try again.');
+      }
+
+      const isDriver = found.role === 'DRIVER' || found.accountType === 'Driver';
       const user: User = {
-        id: 'USR-1001-DEMO',
-        name: payload.email ? payload.email.split('@')[0].replace('.', ' ').toUpperCase() : 'ADITYA SINGH',
-        email: payload.email || 'aditya.singh@gmail.com',
-        phone: '9876543210',
-        accountType: 'Business',
-        companyName: 'RoadSide Enterprise Logistics',
-        memberSince: 'August 2026',
+        id: found.id,
+        name: found.name,
+        email: found.email,
+        phone: found.phone || '9876543210',
+        accountType: isDriver ? 'Driver' : 'Business',
+        role: isDriver ? 'DRIVER' : 'BUSINESS',
+        companyName: isDriver ? undefined : (found.companyName || 'RoadSide Shipper Partner'),
+        licenseNumber: isDriver ? (found.licenseNumber || 'DL-0820200192834') : undefined,
+        assignedVehicleReg: isDriver ? (found.assignedVehicleReg || 'AP 31 TT 5510') : undefined,
+        memberSince: found.memberSince || 'August 2026',
         isActive: true,
         isVerified: true,
-        organizations: [
-          {
-            id: 'ORG-MEM-01',
-            organizationId: 'ORG-01',
-            organizationName: 'RoadSide Enterprise Logistics',
-            organizationType: 'SHIPPER',
-            role: 'OWNER',
-            createdAt: '2026-08-31T00:00:00Z',
-          },
-        ],
       };
+
       setAccessToken(`demo_jwt_token_${Date.now()}`);
       localStorage.setItem(USER_CACHE_KEY, JSON.stringify(user));
       return user;
