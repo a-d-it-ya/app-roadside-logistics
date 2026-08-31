@@ -11,13 +11,15 @@ import {
   KeyRound,
   ArrowRight,
   Zap,
-  Truck
+  Truck,
+  FileBadge2,
+  Navigation
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { AccountType, OrganizationType } from '../../types/auth';
+import { UserRole, OrganizationType, User } from '../../types/auth';
 
 interface AuthModalProps {
-  onSuccess?: () => void;
+  onSuccess?: (user?: User) => void;
 }
 
 export const AuthModal: React.FC<AuthModalProps> = ({ onSuccess }) => {
@@ -35,7 +37,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onSuccess }) => {
     authModalMode || 'SIGN_IN'
   );
 
-  // Sync mode if changed by external trigger
   React.useEffect(() => {
     setMode(authModalMode);
   }, [authModalMode]);
@@ -46,9 +47,17 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onSuccess }) => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
-  const [accountType, setAccountType] = useState<AccountType>('Individual');
+  
+  // Role selector: BUSINESS vs DRIVER
+  const [userRole, setUserRole] = useState<UserRole>('BUSINESS');
+  
+  // Business fields
   const [companyName, setCompanyName] = useState('');
   const [orgType, setOrgType] = useState<OrganizationType>('SHIPPER');
+
+  // Driver fields
+  const [licenseNumber, setLicenseNumber] = useState('');
+  const [vehicleReg, setVehicleReg] = useState('');
 
   // Status
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -57,9 +66,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onSuccess }) => {
 
   if (!isAuthModalOpen) return null;
 
-  const handleUseDemoAccount = () => {
-    setEmail('demo@roadside.in');
-    setPassword('RoadSide123');
+  const handleUseDemoAccount = (role: 'BUSINESS' | 'DRIVER' = 'BUSINESS') => {
+    if (role === 'DRIVER') {
+      setEmail('driver.suresh@roadside.in');
+      setPassword('RoadSide123');
+    } else {
+      setEmail('demo@roadside.in');
+      setPassword('RoadSide123');
+    }
     setErrorMsg(null);
   };
 
@@ -78,7 +92,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onSuccess }) => {
         setIsSubmitting(false);
         setSuccessMsg(null);
         closeAuthModal();
-        if (onSuccess) onSuccess();
+        if (onSuccess) onSuccess(user);
       }, 500);
     } catch (err: any) {
       setIsSubmitting(false);
@@ -91,7 +105,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onSuccess }) => {
     setIsSubmitting(true);
     try {
       const user = await signIn({
-        email: 'aditya.singh@gmail.com',
+        email: userRole === 'DRIVER' ? 'driver.suresh@gmail.com' : 'aditya.singh@gmail.com',
         password: 'GoogleOAuth2SecureSessionKey99#'
       });
       setSuccessMsg(`Signed in with Google as ${user.email}`);
@@ -99,8 +113,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onSuccess }) => {
         setIsSubmitting(false);
         setSuccessMsg(null);
         closeAuthModal();
-        if (onSuccess) onSuccess();
-      }, 500);
+        if (onSuccess) onSuccess(user);
+      }, 600);
     } catch (err: any) {
       setIsSubmitting(false);
       setErrorMsg('Google sign in failed.');
@@ -123,6 +137,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onSuccess }) => {
       setErrorMsg('Please enter a valid phone number.');
       return;
     }
+    if (userRole === 'BUSINESS' && !companyName.trim()) {
+      setErrorMsg('Please enter your business or company name.');
+      return;
+    }
+    if (userRole === 'DRIVER' && !licenseNumber.trim()) {
+      setErrorMsg('Please enter your Commercial Driver License Number.');
+      return;
+    }
     if (!password || password.length < 8) {
       setErrorMsg('Password must be at least 8 characters.');
       return;
@@ -139,15 +161,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onSuccess }) => {
         email: email.trim(),
         phone: phone.trim(),
         password,
-        organizationName: accountType === 'Business' ? companyName.trim() : undefined,
-        organizationType: accountType === 'Business' ? orgType : undefined
+        userRole,
+        organizationName: userRole === 'BUSINESS' ? companyName.trim() : undefined,
+        organizationType: userRole === 'BUSINESS' ? orgType : undefined,
+        licenseNumber: userRole === 'DRIVER' ? licenseNumber.trim() : undefined,
+        assignedVehicleReg: userRole === 'DRIVER' ? (vehicleReg.trim() || 'AP 31 TT 5510') : undefined,
       });
       setSuccessMsg(`Account created! Welcome to RoadSide, ${user.name.split(' ')[0]}.`);
       setTimeout(() => {
         setIsSubmitting(false);
         setSuccessMsg(null);
         closeAuthModal();
-        if (onSuccess) onSuccess();
+        if (onSuccess) onSuccess(user);
       }, 800);
     } catch (err: any) {
       setIsSubmitting(false);
@@ -173,8 +198,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onSuccess }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-[2500] flex items-center justify-center p-3 sm:p-5 bg-black/85 backdrop-blur-md animate-fadeIn font-sans">
-      <div className="bg-slate-950 border border-slate-800 rounded-3xl w-full max-w-md shadow-2xl shadow-black/90 text-white overflow-hidden flex flex-col relative">
+    <div className="fixed inset-0 z-[2000] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fadeIn">
+      <div className="bg-slate-950 border border-slate-800/90 rounded-3xl max-w-md w-full shadow-2xl overflow-hidden relative text-white animate-scaleUp">
         
         {/* Close Button */}
         <button
@@ -184,17 +209,17 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onSuccess }) => {
           <X className="w-4 h-4" />
         </button>
 
-        {/* Intent Banner (If triggered by Booking or My Shipments) */}
+        {/* Intent Banner */}
         {authIntent === 'BOOKING_FLOW' && (
           <div className="bg-cyan-950/80 border-b border-cyan-500/40 px-5 py-2.5 flex items-center gap-2 text-xs font-mono text-cyan-300">
             <Lock className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
             <span>Sign in to confirm and lock your freight reservation.</span>
           </div>
         )}
-        {authIntent === 'MY_SHIPMENTS' && (
+        {authIntent === 'DRIVER_DASHBOARD' && (
           <div className="bg-emerald-950/80 border-b border-emerald-500/40 px-5 py-2.5 flex items-center gap-2 text-xs font-mono text-emerald-300">
-            <Lock className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-            <span>Sign in required to view your personal shipments.</span>
+            <Truck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+            <span>Sign in as a Commercial Driver to access your In-Cab Cockpit.</span>
           </div>
         )}
 
@@ -204,14 +229,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onSuccess }) => {
             {mode === 'SIGN_IN' ? (
               <Lock className="w-6 h-6" />
             ) : mode === 'SIGN_UP' ? (
-              <UserIcon className="w-6 h-6" />
+              userRole === 'DRIVER' ? <Truck className="w-6 h-6" /> : <Building2 className="w-6 h-6" />
             ) : (
               <KeyRound className="w-6 h-6" />
             )}
           </div>
 
           <span className="text-[10px] font-bold uppercase tracking-widest px-2.5 py-0.5 rounded-full bg-slate-900 border border-slate-800 text-slate-400 inline-block">
-            {mode === 'SIGN_IN' ? 'Access Freight Portal' : mode === 'SIGN_UP' ? 'New Fleet / Shipper Member' : 'Account Recovery'}
+            {mode === 'SIGN_IN' ? 'Access Freight Portal' : mode === 'SIGN_UP' ? 'Choose Your Account Type' : 'Account Recovery'}
           </span>
 
           <h2 className="text-lg font-bold text-white tracking-wide uppercase">
@@ -224,9 +249,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onSuccess }) => {
 
           <p className="text-xs text-slate-400 max-w-xs mx-auto font-sans">
             {mode === 'SIGN_IN'
-              ? 'Sign in to manage freight capacity and live bookings.'
+              ? 'Sign in to access your business freight or driver dashboard.'
               : mode === 'SIGN_UP'
-              ? 'Join RoadSide Logistics for smart corridor freight matching.'
+              ? 'Select whether you are a Business Shipper or Commercial Driver.'
               : 'Enter your registered email to reset your credentials.'}
           </p>
         </div>
@@ -290,27 +315,24 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onSuccess }) => {
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="demo@roadside.in"
-                    className="w-full bg-slate-900/90 border border-slate-800 focus:border-emerald-500 rounded-xl py-2.5 pl-9 pr-3 text-white text-xs placeholder:text-slate-600 outline-none transition"
+                    placeholder="aditya@example.com"
+                    className="w-full bg-slate-900/90 border border-slate-800 focus:border-emerald-500 rounded-xl py-2 pl-9 pr-3 text-white text-xs placeholder:text-slate-600 outline-none transition"
                     required
                   />
                 </div>
               </div>
 
               <div className="space-y-1">
-                <div className="flex items-center justify-between">
+                <div className="flex justify-between items-center">
                   <label className="text-[11px] text-slate-400 block uppercase font-semibold">
                     Password
                   </label>
                   <button
                     type="button"
-                    onClick={() => {
-                      setErrorMsg(null);
-                      setMode('FORGOT_PASSWORD');
-                    }}
-                    className="text-[10px] text-emerald-400 hover:text-emerald-300 transition"
+                    onClick={() => setMode('FORGOT_PASSWORD')}
+                    className="text-[10px] text-emerald-400 hover:underline"
                   >
-                    Forgot password?
+                    Forgot?
                   </button>
                 </div>
                 <div className="relative">
@@ -320,32 +342,89 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onSuccess }) => {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
-                    className="w-full bg-slate-900/90 border border-slate-800 focus:border-emerald-500 rounded-xl py-2.5 pl-9 pr-3 text-white text-xs placeholder:text-slate-600 outline-none transition"
+                    className="w-full bg-slate-900/90 border border-slate-800 focus:border-emerald-500 rounded-xl py-2 pl-9 pr-3 text-white text-xs placeholder:text-slate-600 outline-none transition"
                     required
                   />
                 </div>
               </div>
 
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="w-full mt-2 py-3 rounded-xl font-bold uppercase tracking-wider text-xs bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 shadow-lg shadow-emerald-500/20 transition flex items-center justify-center gap-2 disabled:opacity-50"
-              >
-                {isSubmitting ? (
-                  <span>AUTHENTICATING...</span>
-                ) : (
-                  <>
-                    <span>SIGN IN</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </>
-                )}
-              </button>
+              <div className="pt-2">
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-bold text-xs uppercase tracking-wider transition shadow-lg shadow-emerald-500/20 disabled:opacity-50"
+                >
+                  {isSubmitting ? 'Authenticating...' : 'Sign In to Dashboard'}
+                </button>
+              </div>
+
+              {/* Demo Sign In Shortcuts */}
+              <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800/80">
+                <button
+                  type="button"
+                  onClick={() => handleUseDemoAccount('BUSINESS')}
+                  className="py-1.5 px-2 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-[10px] text-cyan-300 flex items-center justify-center gap-1 transition"
+                >
+                  <Building2 className="w-3 h-3 text-cyan-400" />
+                  <span>Demo Business</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleUseDemoAccount('DRIVER')}
+                  className="py-1.5 px-2 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-[10px] text-emerald-300 flex items-center justify-center gap-1 transition"
+                >
+                  <Truck className="w-3 h-3 text-emerald-400" />
+                  <span>Demo Driver</span>
+                </button>
+              </div>
             </form>
           )}
 
-          {/* SIGN UP FORM */}
+          {/* SIGN UP FORM WITH ROLE SELECTION */}
           {mode === 'SIGN_UP' && (
-            <form onSubmit={handleSignUp} className="space-y-3">
+            <form onSubmit={handleSignUp} className="space-y-3.5">
+              
+              {/* PRIMARY ROLE CHOICE SELECTOR */}
+              <div className="space-y-1.5">
+                <label className="text-[11px] text-slate-300 block uppercase font-bold tracking-wider">
+                  Are you a Business / Shipper or a Commercial Driver?
+                </label>
+                <div className="grid grid-cols-2 gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => setUserRole('BUSINESS')}
+                    className={`p-3 rounded-2xl border flex flex-col items-center gap-1.5 transition text-center ${
+                      userRole === 'BUSINESS'
+                        ? 'bg-cyan-950/60 border-cyan-400 text-cyan-200 shadow-md shadow-cyan-950/50'
+                        : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
+                    }`}
+                  >
+                    <Building2 className={`w-5 h-5 ${userRole === 'BUSINESS' ? 'text-cyan-400' : 'text-slate-500'}`} />
+                    <div>
+                      <span className="font-bold text-xs block">Business / Shipper</span>
+                      <span className="text-[9px] opacity-75 font-sans leading-tight block">Ship freight & book shared capacity</span>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setUserRole('DRIVER')}
+                    className={`p-3 rounded-2xl border flex flex-col items-center gap-1.5 transition text-center ${
+                      userRole === 'DRIVER'
+                        ? 'bg-emerald-950/60 border-emerald-400 text-emerald-200 shadow-md shadow-emerald-950/50'
+                        : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
+                    }`}
+                  >
+                    <Truck className={`w-5 h-5 ${userRole === 'DRIVER' ? 'text-emerald-400' : 'text-slate-500'}`} />
+                    <div>
+                      <span className="font-bold text-xs block">Commercial Driver</span>
+                      <span className="text-[9px] opacity-75 font-sans leading-tight block">Manage trips & stream live GPS</span>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              {/* Full Name */}
               <div className="space-y-1">
                 <label className="text-[11px] text-slate-400 block uppercase font-semibold">
                   Full Name
@@ -356,13 +435,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onSuccess }) => {
                     type="text"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    placeholder="Aditya Singh"
+                    placeholder={userRole === 'DRIVER' ? 'e.g. Suresh Naidu' : 'e.g. Aditya Singh'}
                     className="w-full bg-slate-900/90 border border-slate-800 focus:border-emerald-500 rounded-xl py-2 pl-9 pr-3 text-white text-xs placeholder:text-slate-600 outline-none transition"
                     required
                   />
                 </div>
               </div>
 
+              {/* Email and Phone */}
               <div className="grid grid-cols-2 gap-2">
                 <div className="space-y-1">
                   <label className="text-[11px] text-slate-400 block uppercase font-semibold">
@@ -374,7 +454,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onSuccess }) => {
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      placeholder="aditya@example.com"
+                      placeholder="user@example.com"
                       className="w-full bg-slate-900/90 border border-slate-800 focus:border-emerald-500 rounded-xl py-2 pl-8 pr-2 text-white text-[11px] placeholder:text-slate-600 outline-none transition"
                       required
                     />
@@ -399,45 +479,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onSuccess }) => {
                 </div>
               </div>
 
-              {/* Account Type Selection */}
-              <div className="space-y-1">
-                <label className="text-[11px] text-slate-400 block uppercase font-semibold">
-                  Account Type
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setAccountType('Individual')}
-                    className={`py-1.5 px-3 rounded-xl border flex items-center justify-center gap-1.5 transition ${
-                      accountType === 'Individual'
-                        ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50 font-bold'
-                        : 'bg-slate-900/90 text-slate-400 border-slate-800 hover:bg-slate-800'
-                    }`}
-                  >
-                    <UserIcon className="w-3 h-3" />
-                    <span>Individual</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setAccountType('Business')}
-                    className={`py-1.5 px-3 rounded-xl border flex items-center justify-center gap-1.5 transition ${
-                      accountType === 'Business'
-                        ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/50 font-bold'
-                        : 'bg-slate-900/90 text-slate-400 border-slate-800 hover:bg-slate-800'
-                    }`}
-                  >
-                    <Building2 className="w-3 h-3" />
-                    <span>Business</span>
-                  </button>
-                </div>
-              </div>
-
-              {accountType === 'Business' && (
+              {/* CONDITIONAL FIELDS: BUSINESS */}
+              {userRole === 'BUSINESS' && (
                 <div className="space-y-2.5 p-3 rounded-2xl bg-cyan-950/20 border border-cyan-500/30 animate-fadeIn">
                   <div className="space-y-1">
                     <label className="text-[11px] text-cyan-300 block uppercase font-semibold">
-                      Organization / Enterprise Name
+                      Company / Organization Name
                     </label>
                     <input
                       type="text"
@@ -445,7 +492,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onSuccess }) => {
                       onChange={(e) => setCompanyName(e.target.value)}
                       placeholder="e.g. Aditya Freight Solutions"
                       className="w-full bg-slate-900/90 border border-slate-800 focus:border-cyan-500 rounded-xl py-2 px-3 text-white text-xs placeholder:text-slate-600 outline-none transition"
-                      required={accountType === 'Business'}
+                      required
                     />
                   </div>
 
@@ -466,6 +513,40 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onSuccess }) => {
                 </div>
               )}
 
+              {/* CONDITIONAL FIELDS: DRIVER */}
+              {userRole === 'DRIVER' && (
+                <div className="space-y-2.5 p-3 rounded-2xl bg-emerald-950/20 border border-emerald-500/30 animate-fadeIn">
+                  <div className="space-y-1">
+                    <label className="text-[11px] text-emerald-300 block uppercase font-semibold flex items-center gap-1.5">
+                      <FileBadge2 className="w-3.5 h-3.5 text-emerald-400" />
+                      Commercial Driver License No.
+                    </label>
+                    <input
+                      type="text"
+                      value={licenseNumber}
+                      onChange={(e) => setLicenseNumber(e.target.value)}
+                      placeholder="e.g. DL-0820200192834"
+                      className="w-full bg-slate-900/90 border border-slate-800 focus:border-emerald-500 rounded-xl py-2 px-3 text-white text-xs placeholder:text-slate-600 outline-none transition uppercase"
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] text-slate-400 block uppercase font-semibold">
+                      Assigned Vehicle Registration (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={vehicleReg}
+                      onChange={(e) => setVehicleReg(e.target.value)}
+                      placeholder="e.g. AP 31 TT 5510"
+                      className="w-full bg-slate-900/90 border border-slate-800 focus:border-emerald-500 rounded-xl py-1.5 px-2.5 text-white text-xs outline-none uppercase"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Password Fields */}
               <div className="grid grid-cols-2 gap-2">
                 <div className="space-y-1">
                   <label className="text-[11px] text-slate-400 block uppercase font-semibold">
@@ -496,20 +577,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onSuccess }) => {
                 </div>
               </div>
 
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="w-full mt-2 py-3 rounded-xl font-bold uppercase tracking-wider text-xs bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 shadow-lg shadow-emerald-500/20 transition flex items-center justify-center gap-2 disabled:opacity-50"
-              >
-                {isSubmitting ? (
-                  <span>REGISTERING IN POSTGRESQL...</span>
-                ) : (
-                  <>
-                    <span>CREATE ACCOUNT</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </>
-                )}
-              </button>
+              <div className="pt-2">
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-bold text-xs uppercase tracking-wider transition shadow-lg shadow-emerald-500/20 disabled:opacity-50"
+                >
+                  {isSubmitting ? 'Creating Account...' : userRole === 'DRIVER' ? 'Register & Open Driver Cockpit' : 'Register & Enter Freight Network'}
+                </button>
+              </div>
             </form>
           )}
 
@@ -526,56 +602,52 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onSuccess }) => {
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="name@company.com"
-                    className="w-full bg-slate-900/90 border border-slate-800 focus:border-emerald-500 rounded-xl py-2.5 pl-9 pr-3 text-white text-xs placeholder:text-slate-600 outline-none transition"
+                    placeholder="aditya@example.com"
+                    className="w-full bg-slate-900/90 border border-slate-800 focus:border-emerald-500 rounded-xl py-2 pl-9 pr-3 text-white text-xs placeholder:text-slate-600 outline-none transition"
                     required
                   />
                 </div>
               </div>
 
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="w-full py-3 rounded-xl font-bold uppercase tracking-wider text-xs bg-emerald-500 hover:bg-emerald-400 text-slate-950 transition flex items-center justify-center gap-2 disabled:opacity-50"
-              >
-                {isSubmitting ? 'DISPATCHING...' : 'SEND RESET INSTRUCTIONS'}
-              </button>
+              <div className="pt-2">
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="w-full py-2.5 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs uppercase tracking-wider transition shadow-lg shadow-emerald-500/20 disabled:opacity-50"
+                >
+                  {isSubmitting ? 'Sending...' : 'Send Recovery Instructions'}
+                </button>
+              </div>
             </form>
           )}
 
-          {/* Mode Switcher Footer */}
-          <div className="pt-3 border-t border-slate-800/80 text-center text-xs text-slate-400 space-y-1">
-            {mode === 'SIGN_IN' ? (
-              <p>
-                Don't have an account?{' '}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setErrorMsg(null);
-                    setMode('SIGN_UP');
-                  }}
-                  className="font-bold text-emerald-400 hover:text-emerald-300 underline underline-offset-4 ml-1"
-                >
-                  CREATE ACCOUNT
-                </button>
-              </p>
-            ) : (
-              <p>
-                Already have an account?{' '}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setErrorMsg(null);
-                    setMode('SIGN_IN');
-                  }}
-                  className="font-bold text-emerald-400 hover:text-emerald-300 underline underline-offset-4 ml-1"
-                >
-                  SIGN IN
-                </button>
-              </p>
-            )}
-          </div>
+        </div>
 
+        {/* Footer Mode Switcher */}
+        <div className="p-4 bg-slate-900/90 border-t border-slate-800 text-center font-sans text-xs text-slate-400">
+          {mode === 'SIGN_IN' ? (
+            <p>
+              Don't have an account?{' '}
+              <button
+                type="button"
+                onClick={() => setMode('SIGN_UP')}
+                className="text-emerald-400 hover:underline font-semibold font-mono"
+              >
+                Sign Up Now
+              </button>
+            </p>
+          ) : (
+            <p>
+              Already registered?{' '}
+              <button
+                type="button"
+                onClick={() => setMode('SIGN_IN')}
+                className="text-emerald-400 hover:underline font-semibold font-mono"
+              >
+                Sign In
+              </button>
+            </p>
+          )}
         </div>
 
       </div>

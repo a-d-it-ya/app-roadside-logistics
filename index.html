@@ -1777,43 +1777,60 @@
             </div>
           </div>
 
-          <!-- Account Type -->
-          <div class="space-y-1">
-            <label class="text-[11px] text-slate-400 block uppercase font-semibold">
-              Account Type
+          <!-- Are you a Business or Driver? -->
+          <div class="space-y-1.5">
+            <label class="text-[11px] text-slate-300 block uppercase font-bold tracking-wider">
+              Are you a Business / Shipper or a Commercial Driver?
             </label>
             <div class="grid grid-cols-2 gap-2">
               <button
                 type="button"
-                id="regTypeInd"
-                onclick="setRegAccountType('Individual')"
-                class="py-1.5 px-3 rounded-xl border bg-emerald-500/20 text-emerald-300 border-emerald-500/50 font-bold flex items-center justify-center gap-1.5 transition"
+                id="regRoleBiz"
+                onclick="setRegUserRole('BUSINESS')"
+                class="p-2.5 rounded-2xl border bg-cyan-950/60 border-cyan-400 text-cyan-200 shadow-md flex flex-col items-center gap-1 text-center transition"
               >
-                <i data-lucide="user" class="w-3 h-3"></i>
-                <span>Individual</span>
+                <i data-lucide="building-2" class="w-4 h-4 text-cyan-400"></i>
+                <span class="font-bold text-xs">Business / Shipper</span>
+                <span class="text-[9px] opacity-75 font-sans">Ship freight & book capacity</span>
               </button>
 
               <button
                 type="button"
-                id="regTypeBiz"
-                onclick="setRegAccountType('Business')"
-                class="py-1.5 px-3 rounded-xl border bg-slate-900/90 text-slate-400 border-slate-800 hover:bg-slate-800 flex items-center justify-center gap-1.5 transition"
+                id="regRoleDriver"
+                onclick="setRegUserRole('DRIVER')"
+                class="p-2.5 rounded-2xl border bg-slate-900/60 border-slate-800 text-slate-400 hover:bg-slate-800/60 flex flex-col items-center gap-1 text-center transition"
               >
-                <i data-lucide="building-2" class="w-3 h-3"></i>
-                <span>Business</span>
+                <i data-lucide="truck" class="w-4 h-4 text-slate-500"></i>
+                <span class="font-bold text-xs">Commercial Driver</span>
+                <span class="text-[9px] opacity-75 font-sans">Manage trips & GPS telemetry</span>
               </button>
             </div>
           </div>
 
-          <div id="regCompanyGroup" class="hidden space-y-1">
-            <label class="text-[11px] text-slate-400 block uppercase font-semibold">
+          <!-- Conditional Business Group -->
+          <div id="regCompanyGroup" class="space-y-1">
+            <label class="text-[11px] text-cyan-300 block uppercase font-semibold">
               Company / Enterprise Name
             </label>
             <input
               type="text"
               id="regCompany"
-              placeholder="Aditya Logistics Corp."
+              placeholder="e.g. Aditya Freight Solutions"
               class="w-full bg-slate-900/90 border border-slate-800 focus:border-cyan-500 rounded-xl py-2 px-3 text-white text-xs placeholder:text-slate-600 outline-none transition"
+              required
+            />
+          </div>
+
+          <!-- Conditional Driver Group -->
+          <div id="regDriverGroup" class="hidden space-y-1">
+            <label class="text-[11px] text-emerald-300 block uppercase font-semibold">
+              Commercial Driver License No.
+            </label>
+            <input
+              type="text"
+              id="regLicense"
+              placeholder="e.g. DL-0820200192834"
+              class="w-full bg-slate-900/90 border border-slate-800 focus:border-emerald-500 rounded-xl py-2 px-3 text-white text-xs placeholder:text-slate-600 outline-none transition uppercase"
             />
           </div>
 
@@ -6643,20 +6660,25 @@
       });
     }
 
-    function setRegAccountType(type) {
-      regAccountTypeSelected = type;
-      const btnInd = document.getElementById('regTypeInd');
-      const btnBiz = document.getElementById('regTypeBiz');
-      const compGroup = document.getElementById('regCompanyGroup');
+    let regUserRoleSelected = 'BUSINESS';
 
-      if (type === 'Individual') {
-        btnInd.className = 'py-1.5 px-3 rounded-xl border bg-emerald-500/20 text-emerald-300 border-emerald-500/50 font-bold flex items-center justify-center gap-1.5 transition';
-        btnBiz.className = 'py-1.5 px-3 rounded-xl border bg-slate-900/90 text-slate-400 border-slate-800 hover:bg-slate-800 flex items-center justify-center gap-1.5 transition';
-        if (compGroup) compGroup.classList.add('hidden');
-      } else {
-        btnBiz.className = 'py-1.5 px-3 rounded-xl border bg-cyan-500/20 text-cyan-300 border-cyan-500/50 font-bold flex items-center justify-center gap-1.5 transition';
-        btnInd.className = 'py-1.5 px-3 rounded-xl border bg-slate-900/90 text-slate-400 border-slate-800 hover:bg-slate-800 flex items-center justify-center gap-1.5 transition';
+    function setRegUserRole(role) {
+      regUserRoleSelected = role;
+      const btnBiz = document.getElementById('regRoleBiz');
+      const btnDriver = document.getElementById('regRoleDriver');
+      const compGroup = document.getElementById('regCompanyGroup');
+      const driverGroup = document.getElementById('regDriverGroup');
+
+      if (role === 'BUSINESS') {
+        if (btnBiz) btnBiz.className = 'p-2.5 rounded-2xl border bg-cyan-950/60 border-cyan-400 text-cyan-200 shadow-md flex flex-col items-center gap-1 text-center transition';
+        if (btnDriver) btnDriver.className = 'p-2.5 rounded-2xl border bg-slate-900/60 border-slate-800 text-slate-400 hover:bg-slate-800/60 flex flex-col items-center gap-1 text-center transition';
         if (compGroup) compGroup.classList.remove('hidden');
+        if (driverGroup) driverGroup.classList.add('hidden');
+      } else {
+        if (btnDriver) btnDriver.className = 'p-2.5 rounded-2xl border bg-emerald-950/60 border-emerald-400 text-emerald-200 shadow-md flex flex-col items-center gap-1 text-center transition';
+        if (btnBiz) btnBiz.className = 'p-2.5 rounded-2xl border bg-slate-900/60 border-slate-800 text-slate-400 hover:bg-slate-800/60 flex flex-col items-center gap-1 text-center transition';
+        if (compGroup) compGroup.classList.add('hidden');
+        if (driverGroup) driverGroup.classList.remove('hidden');
       }
       lucide.createIcons();
     }
@@ -6669,10 +6691,13 @@
       const password = document.getElementById('regPassword').value;
       const confirmPass = document.getElementById('regConfirmPassword').value;
       const company = document.getElementById('regCompany') ? document.getElementById('regCompany').value.trim() : '';
+      const license = document.getElementById('regLicense') ? document.getElementById('regLicense').value.trim() : '';
 
       if (!name) return showAuthError('Full name is required.');
       if (!email || !email.includes('@')) return showAuthError('Please enter a valid email address.');
       if (!phone || phone.length < 8) return showAuthError('Please enter a valid phone number.');
+      if (regUserRoleSelected === 'BUSINESS' && !company) return showAuthError('Please enter your company or business name.');
+      if (regUserRoleSelected === 'DRIVER' && !license) return showAuthError('Please enter your Commercial Driver License number.');
       if (!password || password.length < 8) return showAuthError('Password must be at least 8 characters.');
       if (password !== confirmPass) return showAuthError('Passwords do not match.');
 
@@ -6680,21 +6705,25 @@
       try {
         users = JSON.parse(localStorage.getItem(AUTH_USERS_KEY)) || [DEFAULT_DEMO_USER];
       } catch (err) {
-        users = [DEFAULT_DEMO_USER];
+        users = [DEFAULT_DEMO_KEY];
       }
 
       if (users.some(u => u.email.toLowerCase() === email)) {
         return showAuthError('An account already exists with this email.');
       }
 
+      const isDriver = regUserRoleSelected === 'DRIVER';
       const newId = `USR-${1000 + users.length + 1}`;
       const newUser = {
         id: newId,
         name,
         email,
         phone,
-        accountType: regAccountTypeSelected,
-        companyName: regAccountTypeSelected === 'Business' ? company : undefined,
+        role: regUserRoleSelected,
+        accountType: isDriver ? 'Driver' : 'Business',
+        companyName: isDriver ? undefined : company,
+        licenseNumber: isDriver ? license : undefined,
+        assignedVehicleReg: isDriver ? 'AP 31 TT 5510' : undefined,
         memberSince: 'August 2026',
         password
       };
@@ -6707,8 +6736,11 @@
         name: newUser.name,
         email: newUser.email,
         phone: newUser.phone,
+        role: newUser.role,
         accountType: newUser.accountType,
         companyName: newUser.companyName,
+        licenseNumber: newUser.licenseNumber,
+        assignedVehicleReg: newUser.assignedVehicleReg,
         memberSince: newUser.memberSince
       };
 
@@ -6717,7 +6749,9 @@
 
       showAuthSuccess(`✓ Account created! Welcome, ${CURRENT_USER.name.split(' ')[0]}.`, () => {
         closeAuthModal();
-        if (pendingBookingAction) {
+        if (isDriver) {
+          openDriverModal();
+        } else if (pendingBookingAction) {
           pendingBookingAction = false;
           executeBookingConfirmation();
         }

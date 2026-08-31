@@ -10,8 +10,11 @@ const signupSchema = z.object({
   email: z.string().email(),
   password: z.string().min(6),
   phone: z.string().optional().nullable(),
+  user_role: z.enum(['BUSINESS', 'DRIVER']).optional().default('BUSINESS'),
   organization_name: z.string().optional().nullable(),
   organization_type: z.enum(['SHIPPER', 'FLEET_PARTNER', 'LOGISTICS_COMPANY', 'ROADSIDE_INTERNAL']).optional().default('SHIPPER'),
+  license_number: z.string().optional().nullable(),
+  assigned_vehicle_reg: z.string().optional().nullable(),
 });
 
 const loginSchema = z.object({
@@ -121,6 +124,10 @@ export const authController = {
           full_name: user.fullName || user.full_name,
           email: user.email,
           phone: user.phone,
+          role: validated.user_role,
+          account_type: validated.user_role === 'DRIVER' ? 'Driver' : 'Business',
+          license_number: validated.license_number || null,
+          assigned_vehicle_reg: validated.assigned_vehicle_reg || null,
           is_active: user.isActive ?? true,
           is_verified: user.isVerified ?? true,
           organizations: [

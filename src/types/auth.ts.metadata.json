@@ -1,4 +1,4 @@
 {
-  "summary": "Updated SaaS Auth types and interfaces in auth.ts",
-  "updatedAt": "2026-08-31T13:08:31.751913900Z"
+  "summary": "Auth types updated with Business vs Driver user roles and commercial license fields.",
+  "updatedAt": "2026-08-31T16:29:14.300856Z"
 }

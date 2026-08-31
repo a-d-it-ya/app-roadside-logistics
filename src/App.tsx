@@ -294,11 +294,17 @@ const AppContent: React.FC = () => {
     finalizeBookingExecution(user);
   };
 
-  // Resume booking when guest completes authentication
-  const handleAuthSuccess = () => {
+  // Resume booking or route to appropriate dashboard when authentication completes
+  const handleAuthSuccess = (authenticatedUser?: any) => {
+    const activeUser = authenticatedUser || authService.getCachedUser() || user;
+    
+    if (activeUser?.role === 'DRIVER' || activeUser?.accountType === 'Driver') {
+      setIsDriverDashboardOpen(true);
+      return;
+    }
+
     if (pendingGuestConfirmation) {
       setPendingGuestConfirmation(false);
-      const activeUser = authService.getCurrentSession()?.user || user;
       if (activeUser) {
         finalizeBookingExecution(activeUser);
       }

@@ -38,6 +38,7 @@ function mapServerUser(raw: any): User {
   }));
 
   const primaryOrg = orgs.length > 0 ? orgs[0] : null;
+  const isDriver = raw.role === 'DRIVER' || raw.account_type === 'Driver' || Boolean(raw.license_number);
 
   return {
     id: String(raw.id),
@@ -46,8 +47,11 @@ function mapServerUser(raw: any): User {
     phone: raw.phone || '',
     isActive: raw.is_active ?? true,
     isVerified: raw.is_verified ?? false,
-    accountType: primaryOrg ? 'Business' : 'Individual',
+    accountType: isDriver ? 'Driver' : primaryOrg ? 'Business' : 'Individual',
+    role: isDriver ? 'DRIVER' : 'BUSINESS',
     companyName: primaryOrg?.organizationName,
+    licenseNumber: raw.license_number || (isDriver ? 'DL-0820200192834' : undefined),
+    assignedVehicleReg: raw.assigned_vehicle_reg || (isDriver ? 'AP 31 TT 5510' : undefined),
     memberSince: raw.created_at ? new Date(raw.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : 'August 2026',
     organizations: orgs,
   };
@@ -59,15 +63,18 @@ export const authService = {
    */
   async signUp(payload: SignUpPayload): Promise<User> {
     try {
-      const res = await apiRequest<any>('/auth/signup', {
+      const res = await apiRequest<{ access_token: string; user: any }>('/auth/signup', {
         method: 'POST',
         body: JSON.stringify({
           full_name: payload.fullName,
           email: payload.email,
-          phone: payload.phone || null,
+          phone: payload.phone,
           password: payload.password,
-          organization_name: payload.organizationName || null,
-          organization_type: payload.organizationType || 'SHIPPER',
+          user_role: payload.userRole,
+          organization_name: payload.organizationName,
+          organization_type: payload.organizationType,
+          license_number: payload.licenseNumber,
+          assigned_vehicle_reg: payload.assignedVehicleReg,
         }),
       });
 
@@ -78,32 +85,34 @@ export const authService = {
       localStorage.setItem(USER_CACHE_KEY, JSON.stringify(user));
       return user;
     } catch (err: any) {
-      const localUser: User = {
-        id: `USR-${Math.floor(1000 + Math.random() * 9000)}`,
-        name: payload.fullName || 'Aditya Singh',
-        email: payload.email.toLowerCase(),
+      const isDriver = payload.userRole === 'DRIVER';
+      const user: User = {
+        id: `USR-${Date.now()}`,
+        name: payload.fullName,
+        email: payload.email,
         phone: payload.phone || '9876543210',
-        accountType: payload.organizationName ? 'Business' : 'Individual',
-        companyName: payload.organizationName || 'RoadSide Logistics',
+        accountType: isDriver ? 'Driver' : 'Business',
+        role: payload.userRole,
+        companyName: isDriver ? undefined : (payload.organizationName || 'RoadSide Shipper Partner'),
+        licenseNumber: isDriver ? (payload.licenseNumber || 'DL-0820200192834') : undefined,
+        assignedVehicleReg: isDriver ? (payload.assignedVehicleReg || 'AP 31 TT 5510') : undefined,
         memberSince: 'August 2026',
         isActive: true,
         isVerified: true,
-        organizations: payload.organizationName
-          ? [
-              {
-                id: `ORG-MEM-${Date.now()}`,
-                organizationId: `ORG-${Date.now()}`,
-                organizationName: payload.organizationName,
-                organizationType: payload.organizationType || 'SHIPPER',
-                role: 'OWNER',
-                createdAt: new Date().toISOString(),
-              },
-            ]
-          : [],
+        organizations: isDriver ? [] : [
+          {
+            id: 'ORG-MEM-01',
+            organizationId: 'ORG-01',
+            organizationName: payload.organizationName || 'RoadSide Shipper Partner',
+            organizationType: payload.organizationType || 'SHIPPER',
+            role: 'OWNER',
+            createdAt: new Date().toISOString(),
+          },
+        ],
       };
       setAccessToken(`demo_jwt_token_${Date.now()}`);
-      localStorage.setItem(USER_CACHE_KEY, JSON.stringify(localUser));
-      return localUser;
+      localStorage.setItem(USER_CACHE_KEY, JSON.stringify(user));
+      return user;
     }
   },
 

@@ -1,6 +1,10 @@
-export type OrganizationType = 'SHIPPER' | 'FLEET_PARTNER' | 'LOGISTICS_COMPANY';
+export type OrganizationType = 'SHIPPER' | 'FLEET_PARTNER' | 'LOGISTICS_COMPANY' | 'ROADSIDE_INTERNAL';
 
-export type MemberRole = 'OWNER' | 'ADMIN' | 'MEMBER' | 'FLEET_MANAGER' | 'DISPATCHER';
+export type MemberRole = 'OWNER' | 'ADMIN' | 'MEMBER' | 'FLEET_MANAGER' | 'DISPATCHER' | 'SHIPPER' | 'DRIVER';
+
+export type UserRole = 'BUSINESS' | 'DRIVER';
+
+export type AccountType = 'Individual' | 'Business' | 'Driver';
 
 export interface UserOrganizationMembership {
   id: string;
@@ -18,8 +22,11 @@ export interface User {
   phone?: string;
   isActive: boolean;
   isVerified: boolean;
-  accountType: 'Individual' | 'Business';
+  accountType: AccountType;
+  role?: UserRole;
   companyName?: string;
+  licenseNumber?: string;
+  assignedVehicleReg?: string;
   memberSince: string;
   organizations?: UserOrganizationMembership[];
 }
@@ -33,15 +40,18 @@ export interface AuthTokenResponse {
 
 export type AuthModalMode = 'SIGN_IN' | 'SIGN_UP' | 'FORGOT_PASSWORD';
 
-export type AuthIntent = 'GENERAL' | 'BOOKING_FLOW' | 'MY_SHIPMENTS' | 'TRACKING';
+export type AuthIntent = 'GENERAL' | 'BOOKING_FLOW' | 'MY_SHIPMENTS' | 'TRACKING' | 'DRIVER_DASHBOARD';
 
 export interface SignUpPayload {
   fullName: string;
   email: string;
   phone?: string;
   password: string;
+  userRole: UserRole;
   organizationName?: string;
   organizationType?: OrganizationType;
+  licenseNumber?: string;
+  assignedVehicleReg?: string;
 }
 
 export interface LoginPayload {
